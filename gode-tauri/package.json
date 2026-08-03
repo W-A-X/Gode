@@ -1,0 +1,13 @@
+{
+  "name": "gode-tauri",
+  "version": "0.1.0",
+  "description": "Gode Editor with Tauri window management and Go rendering",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
