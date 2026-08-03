@@ -215,18 +215,45 @@ func (e *Engine) SetTokens(lines []TokenLine) {
 		}
 		spans[tl.Line] = ss
 	}
-	e.view.SetTokens(spans)
+	e.view.SetTokensForVersion(spans, e.view.ModelVersion())
 	e.markDirty()
 }
 
-// SetText replaces the entire document.
+// SetText replaces the entire document while preserving the current selection
+// and scroll state when possible. If the new text is shorter than the current
+// selection, the cursor is clamped to valid positions.
 func (e *Engine) SetText(text string) {
 	model := editor.NewTextModel(text)
 	e.model = model
 	e.view.Model = model
 	e.view.VM.Model = model
-	e.view.SetCursor(editor.Position{Line: 1, Column: 1})
+
+	// Bump the model version so that any in-flight token updates from the
+	// previous file are discarded as stale (fixes highlight/content mismatch
+	// on rapid file switches).
+	e.view.bumpModelVersion()
+
+	// Preserve scroll position and clamp selection to the new content.
+	oldCursor := e.view.Cursor()
+	newMaxLine := model.LineCount()
+	newMaxCol := model.LineMaxColumn(clampInt(oldCursor.Line, 1, newMaxLine))
+
+	newPos := editor.Position{
+		Line:   clampInt(oldCursor.Line, 1, newMaxLine),
+		Column: clampInt(oldCursor.Column, 1, newMaxCol),
+	}
+	e.view.SetCursor(newPos)
 	e.markDirty()
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // GetContent returns the full document text.
