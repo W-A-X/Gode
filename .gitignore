@@ -1,31 +1,24 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
 # Dependencies
-.venv/
-venv/
 node_modules/
-.mypy_cache/
-.pytest_cache/
-dist/
-build/
 target/
-.gradle/
+
+# Go build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*_test
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/Cargo.lock
 
 # Logs and temp files
 *.log
 *.tmp
-*.swp
-*.swo
 
 # Environment
 .env
@@ -35,8 +28,10 @@ target/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# System files
+# OS specific
 .DS_Store
 Thumbs.db
 
@@ -45,27 +40,14 @@ coverage/
 htmlcov/
 .coverage
 
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# Python (if any Python files exist in project)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.mypy_cache/
+.pytest_cache/
 ```

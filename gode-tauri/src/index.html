@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gode Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #1e1e1e;
+            color: #cccccc;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Title bar (custom decorations) */
+        .title-bar {
+            height: 30px;
+            background-color: #3c3c3c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            -webkit-app-region: drag;
+        }
+
+        .title-bar-title {
+            font-size: 12px;
+            color: #cccccc;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+
+        .window-control {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .window-control.close { background-color: #ff5f56; }
+        .window-control.minimize { background-color: #ffbd2e; }
+        .window-control.maximize { background-color: #27c93f; }
+
+        /* Main layout */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Editor area - where Go renderer will attach */
+        .editor-area {
+            flex: 1;
+            background-color: #1e1e1e;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #editor-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Bottom sidebar (activity bar moved to bottom) */
+        .bottom-sidebar {
+            height: 48px;
+            background-color: #252526;
+            border-top: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+        }
+
+        .activity-item {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            color: #858585;
+        }
+
+        .activity-item:hover {
+            color: #ffffff;
+            background-color: #2a2d2e;
+        }
+
+        .activity-item.active {
+            color: #ffffff;
+            border-bottom-color: #007acc;
+        }
+
+        .activity-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        /* Status bar */
+        .status-bar {
+            height: 22px;
+            background-color: #007acc;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            font-size: 11px;
+            color: #ffffff;
+        }
+
+        .status-left, .status-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .status-item {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Plugins window overlay */
+        .plugins-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .plugins-window {
+            width: 800px;
+            height: 600px;
+            background-color: #252526;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .plugins-header {
+            height: 40px;
+            background-color: #3c3c3c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .plugins-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .plugins-close {
+            cursor: pointer;
+            font-size: 20px;
+            color: #858585;
+        }
+
+        .plugins-close:hover {
+            color: #ffffff;
+        }
+
+        .plugins-content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .plugin-card {
+            background-color: #3c3c3c;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .plugin-icon {
+            width: 48px;
+            height: 48px;
+            background-color: #505050;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .plugin-info {
+            flex: 1;
+        }
+
+        .plugin-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .plugin-description {
+            font-size: 12px;
+            color: #858585;
+            margin-bottom: 8px;
+        }
+
+        .plugin-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #007acc;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: #005a9e;
+        }
+
+        .btn-secondary {
+            background-color: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #505050;
+        }
+
+        .btn-secondary:hover {
+            background-color: #505050;
+        }
+    </style>
+</head>
+<body>
+    <!-- Title bar -->
+    <div class="title-bar">
+        <span class="title-bar-title">Gode Editor</span>
+        <div class="window-controls">
+            <div class="window-control minimize" title="Minimize"></div>
+            <div class="window-control maximize" title="Maximize"></div>
+            <div class="window-control close" title="Close"></div>
+        </div>
+    </div>
+
+    <!-- Main container -->
+    <div class="main-container">
+        <!-- Editor area (Go renderer attaches here) -->
+        <div class="editor-area">
+            <canvas id="editor-canvas"></canvas>
+        </div>
+
+        <!-- Bottom sidebar (activity bar) -->
+        <div class="bottom-sidebar">
+            <div class="activity-item active" data-view="explorer" title="Explorer">
+                <span class="activity-icon">📁</span>
+            </div>
+            <div class="activity-item" data-view="search" title="Search">
+                <span class="activity-icon">🔍</span>
+            </div>
+            <div class="activity-item" data-view="source-control" title="Source Control">
+                <span class="activity-icon">🌿</span>
+            </div>
+            <div class="activity-item" data-view="run" title="Run and Debug">
+                <span class="activity-icon">▶️</span>
+            </div>
+            <div class="activity-item" data-view="extensions" title="Extensions" onclick="showPluginsWindow()">
+                <span class="activity-icon">🧩</span>
+            </div>
+            <div class="activity-item" data-view="settings" title="Settings">
+                <span class="activity-icon">⚙️</span>
+            </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span class="status-item">🌿 main</span>
+                <span class="status-item">⊗ 0 ⚠ 0</span>
+            </div>
+            <div class="status-right">
+                <span class="status-item">Ln 1, Col 1</span>
+                <span class="status-item">Spaces: 4</span>
+                <span class="status-item">UTF-8</span>
+                <span class="status-item">Plain Text</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plugins marketplace overlay -->
+    <div class="plugins-overlay" id="pluginsOverlay">
+        <div class="plugins-window">
+            <div class="plugins-header">
+                <span class="plugins-title">Extensions Marketplace</span>
+                <span class="plugins-close" onclick="hidePluginsWindow()">&times;</span>
+            </div>
+            <div class="plugins-content" id="pluginsContent">
+                <!-- Plugin cards will be rendered here by Tauri/Go -->
+                <div class="plugin-card">
+                    <div class="plugin-icon">🐍</div>
+                    <div class="plugin-info">
+                        <div class="plugin-name">Python</div>
+                        <div class="plugin-description">IntelliSense, linting, debugging for Python</div>
+                        <div class="plugin-actions">
+                            <button class="btn btn-primary">Install</button>
+                            <button class="btn btn-secondary">Details</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="plugin-card">
+                    <div class="plugin-icon">🦀</div>
+                    <div class="plugin-info">
+                        <div class="plugin-name">Rust</div>
+                        <div class="plugin-description">Rust language support with rust-analyzer</div>
+                        <div class="plugin-actions">
+                            <button class="btn btn-primary">Install</button>
+                            <button class="btn btn-secondary">Details</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="plugin-card">
+                    <div class="plugin-icon">📘</div>
+                    <div class="plugin-info">
+                        <div class="plugin-name">TypeScript</div>
+                        <div class="plugin-description">TypeScript language features</div>
+                        <div class="plugin-actions">
+                            <button class="btn btn-secondary">Disable</button>
+                            <button class="btn btn-secondary">Details</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Activity bar item selection
+        document.querySelectorAll('.activity-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.activity-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        // Plugins window functions
+        function showPluginsWindow() {
+            document.getElementById('pluginsOverlay').style.display = 'flex';
+            // Invoke Tauri command to load plugins data
+            if (window.__TAURI__) {
+                window.__TAURI__.invoke('show_plugins_window')
+                    .then(() => console.log('Plugins window opened'))
+                    .catch(err => console.error('Error:', err));
+            }
+        }
+
+        function hidePluginsWindow() {
+            document.getElementById('pluginsOverlay').style.display = 'none';
+        }
+
+        // Close overlay when clicking outside
+        document.getElementById('pluginsOverlay').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('pluginsOverlay')) {
+                hidePluginsWindow();
+            }
+        });
+
+        // Window controls (for custom decorations)
+        document.querySelector('.window-control.close').addEventListener('click', () => {
+            if (window.__TAURI__) {
+                window.__TAURI__.app.getWindow('main').close();
+            }
+        });
+
+        document.querySelector('.window-control.minimize').addEventListener('click', () => {
+            if (window.__TAURI__) {
+                window.__TAURI__.app.getWindow('main').minimize();
+            }
+        });
+
+        document.querySelector('.window-control.maximize').addEventListener('click', () => {
+            if (window.__TAURI__) {
+                const win = window.__TAURI__.app.getWindow('main');
+                win.isMaximized().then(maximized => {
+                    if (maximized) {
+                        win.unmaximize();
+                    } else {
+                        win.maximize();
+                    }
+                });
+            }
+        });
+
+        // Initialize editor canvas context for Go renderer
+        window.editorCanvas = document.getElementById('editor-canvas');
+        window.editorContext = window.editorCanvas.getContext('2d');
+
+        // Resize canvas to fit container
+        function resizeCanvas() {
+            const container = document.querySelector('.editor-area');
+            const canvas = document.getElementById('editor-canvas');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        console.log('Gode Editor UI initialized');
+    </script>
+</body>
+</html>
