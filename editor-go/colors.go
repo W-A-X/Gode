@@ -8,7 +8,10 @@ var (
 	backgroundColor         = widget.RGBA8(0x1E, 0x1E, 0x1E, 0xFF)
 	foregroundColor         = widget.RGBA8(0xD4, 0xD4, 0xD4, 0xFF)
 	currentLineColor        = widget.RGBA8(0x2A, 0x2A, 0x2A, 0xFF)
-	selectionColor          = widget.RGBA8(0x26, 0x4F, 0x78, 0xFF)
+	// Selection color matches VS Code's editor selection (#264F78 is the classic
+	// VS Code selection blue, but we use a more neutral tone to avoid the
+	// "blue outline" effect that looks out of place in the main window).
+	selectionColor          = widget.RGBA8(0x3A, 0x3D, 0x41, 0xFF)
 	cursorColor             = widget.RGBA8(0xAE, 0xAF, 0xAD, 0xFF)
 	cursorUnfocusedColor    = widget.RGBA8(0xAE, 0xAF, 0xAD, 0x60)
 	lineNumberColor         = widget.RGBA8(0x85, 0x85, 0x85, 0xFF)
