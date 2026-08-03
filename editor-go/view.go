@@ -55,6 +55,11 @@ type EditorView struct {
 	// input mapping must use real measurements or the caret overlaps glyphs
 	// and Backspace/click delete the visually wrong character.
 	lastCanvas widget.Canvas
+
+	// modelVersion is incremented whenever the Model is replaced. This lets
+	// the view detect when SetTokens arrives for a stale model (e.g. during
+	// rapid file switches) and discard them to avoid highlighting mismatches.
+	modelVersion uint64
 }
 
 // TokenSpan is a colored, half-open column range [Start, End) on a line.
@@ -82,6 +87,28 @@ func (v *EditorView) SetTokens(spans map[int][]TokenSpan) {
 	v.SetNeedsRedraw(true)
 }
 
+// SetTokensForVersion applies token spans only if the model version matches.
+// This prevents stale highlights from appearing when rapidly switching files:
+// if the model has been replaced since the tokens were computed, they are
+// discarded instead of applied to the wrong content.
+func (v *EditorView) SetTokensForVersion(spans map[int][]TokenSpan, version uint64) bool {
+	if version != v.modelVersion {
+		return false
+	}
+	if v.tokens == nil {
+		v.tokens = make(map[int][]TokenSpan)
+	}
+	for line, ss := range spans {
+		if len(ss) == 0 {
+			delete(v.tokens, line)
+		} else {
+			v.tokens[line] = ss
+		}
+	}
+	v.SetNeedsRedraw(true)
+	return true
+}
+
 // SetBreakpoints replaces the set of 1-based lines with a breakpoint marker.
 func (v *EditorView) SetBreakpoints(bp map[int]bool) {
 	v.breakpoints = bp
@@ -96,6 +123,7 @@ func NewEditorView(m ITextModel, opts ViewOptions) *EditorView {
 		VM:            NewViewModel(m, opts),
 		selection:     Selection{Anchor: Position{Line: 1, Column: 1}, Active: Position{Line: 1, Column: 1}},
 		desiredColumn: 0,
+		modelVersion:  1,
 	}
 	// The embedded WidgetBase is zero-valued here, which means visible and
 	// enabled are both false. That makes IsFocusable() false, so the focus
@@ -108,6 +136,16 @@ func NewEditorView(m ITextModel, opts ViewOptions) *EditorView {
 	v.SetEnabled(true)
 	return v
 }
+
+// bumpModelVersion increments the model version counter. Call this whenever
+// the Model field is replaced so that SetTokens can detect stale updates.
+func (v *EditorView) bumpModelVersion() {
+	v.modelVersion++
+}
+
+// ModelVersion returns the current model version. Used by the engine to tag
+// token updates so stale highlights from rapid file switches are discarded.
+func (v *EditorView) ModelVersion() uint64 { return v.modelVersion }
 
 // Selection returns the current selection (anchor + cursor).
 func (v *EditorView) Selection() Selection { return v.selection }
@@ -415,6 +453,8 @@ func (v *EditorView) Event(ctx widget.Context, e event.Event) bool {
 	case *event.WheelEvent:
 		return v.handleWheel(ev)
 	case *event.KeyEvent:
+		// Accept key press/repeat events when focused. KeyRelease is ignored
+		// to prevent repeated processing of the same physical key event.
 		if v.IsFocused() && ev.KeyType != event.KeyRelease {
 			return v.handleKey(ev)
 		}
@@ -507,7 +547,9 @@ func (v *EditorView) handleWheel(e *event.WheelEvent) bool {
 	// mouseWheelScrollSensitivity / fastScrollSensitivity multipliers — so scroll
 	// directly by pixels. (Previously the engine guessed |delta|<=3 meant lines,
 	// which mishandled macOS trackpad pixel deltas and felt unnatural.)
-	v.VM.ScrollBy(e.DeltaY(), e.DeltaX())
+	// Apply a sensitivity multiplier for smoother scrolling on high-DPI displays.
+	const sensitivity float32 = 1.5
+	v.VM.ScrollBy(e.DeltaY()*sensitivity, e.DeltaX()*sensitivity)
 	v.SetNeedsRedraw(true)
 	return true
 }
