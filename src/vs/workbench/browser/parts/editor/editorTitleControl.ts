@@ -18,213 +18,240 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configurationService.js';
+
+// Gode imports - Go-based tab rendering
+import { GodeTabsControl } from '../../contrib/gode/browser/godeTabsControl.js';
 
 export interface IEditorTitleControlDimensions {
 
-	/**
-	 * The size of the parent container the title control is layed out in.
-	 */
-	readonly container: Dimension;
+        /**
+         * The size of the parent container the title control is layed out in.
+         */
+        readonly container: Dimension;
 
-	/**
-	 * The maximum size the title control is allowed to consume based on
-	 * other controls that are positioned inside the container.
-	 */
-	readonly available: Dimension;
+        /**
+         * The maximum size the title control is allowed to consume based on
+         * other controls that are positioned inside the container.
+         */
+        readonly available: Dimension;
 }
 
 export class EditorTitleControl extends Themable {
 
-	private editorTabsControl: IEditorTabsControl;
-	private readonly editorTabsControlDisposable = this._register(new DisposableStore());
+        private editorTabsControl: IEditorTabsControl;
+        private readonly editorTabsControlDisposable = this._register(new DisposableStore());
 
-	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
-	private readonly breadcrumbsControlDisposables = this._register(new DisposableStore());
-	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
+        private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+        private readonly breadcrumbsControlDisposables = this._register(new DisposableStore());
+        private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
-	constructor(
-		private readonly parent: HTMLElement,
-		private readonly editorPartsView: IEditorPartsView,
-		private readonly groupsView: IEditorGroupsView,
-		private readonly groupView: IEditorGroupView,
-		private readonly model: IReadonlyEditorGroupModel,
-		private readonly menuIds: IEditorGroupMenuIds | undefined,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
-	) {
-		super(themeService);
+        // Track whether Gode tabs mode is enabled
+        private useGodeTabs: boolean = false;
 
-		this.editorTabsControl = this.createEditorTabsControl();
-		this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
-	}
+        constructor(
+                private readonly parent: HTMLElement,
+                private readonly editorPartsView: IEditorPartsView,
+                private readonly groupsView: IEditorGroupsView,
+                private readonly groupView: IEditorGroupView,
+                private readonly model: IReadonlyEditorGroupModel,
+                private readonly menuIds: IEditorGroupMenuIds | undefined,
+                @IInstantiationService private instantiationService: IInstantiationService,
+                @IThemeService themeService: IThemeService,
+                @IConfigurationService private configurationService: IConfigurationService
+        ) {
+                super(themeService);
 
-	private createEditorTabsControl(): IEditorTabsControl {
-		let tabsControlType;
-		switch (this.groupsView.partOptions.showTabs) {
-			case 'none':
-				tabsControlType = NoEditorTabsControl;
-				break;
-			case 'single':
-				tabsControlType = SingleEditorTabsControl;
-				break;
-			case 'multiple':
-			default:
-				tabsControlType = this.groupsView.partOptions.pinnedTabsOnSeparateRow ? MultiRowEditorControl : MultiEditorTabsControl;
-				break;
-		}
+                // Check if Gode tabs should be used
+                this.useGodeTabs = this.configurationService.getValue<boolean>('gode.enabled') === true;
 
-		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds);
-		return this.editorTabsControlDisposable.add(control);
-	}
+                this.editorTabsControl = this.createEditorTabsControl();
+                this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
+        }
 
-	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
-		if (this.groupsView.partOptions.showTabs === 'single') {
-			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
-		}
+        private createEditorTabsControl(): IEditorTabsControl {
+                // Use Go-based tab rendering when Gode is enabled and tabs are shown
+                if (this.useGodeTabs && this.groupsView.partOptions.showTabs !== 'none') {
+                        const control = this.instantiationService.createInstance(
+                                GodeTabsControl,
+                                this.parent,
+                                this.editorPartsView,
+                                this.groupsView,
+                                this.groupView,
+                                this.model
+                        );
+                        return this.editorTabsControlDisposable.add(control);
+                }
 
-		// Breadcrumbs container
-		const breadcrumbsContainer = $('.breadcrumbs-below-tabs');
-		this.parent.appendChild(breadcrumbsContainer);
+                let tabsControlType;
+                switch (this.groupsView.partOptions.showTabs) {
+                        case 'none':
+                                tabsControlType = NoEditorTabsControl;
+                                break;
+                        case 'single':
+                                tabsControlType = SingleEditorTabsControl;
+                                break;
+                        case 'multiple':
+                        default:
+                                tabsControlType = this.groupsView.partOptions.pinnedTabsOnSeparateRow ? MultiRowEditorControl : MultiEditorTabsControl;
+                                break;
+                }
 
-		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupView, {
-			showFileIcons: true,
-			showSymbolIcons: true,
-			showDecorationColors: false,
-			showPlaceholder: true,
-			dragEditor: false,
-			showEditorTypePicker: true,
-		}));
+                const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds);
+                return this.editorTabsControlDisposable.add(control);
+        }
 
-		// Breadcrumbs enablement & visibility change have an impact on layout
-		// so we need to relayout the editor group when that happens.
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.groupView.relayout()));
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.groupView.relayout()));
+        private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
+                if (this.groupsView.partOptions.showTabs === 'single' || this.useGodeTabs) {
+                        return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs. Gode has its own handling.
+                }
 
-		return breadcrumbsControlFactory;
-	}
+                // Breadcrumbs container
+                const breadcrumbsContainer = $('.breadcrumbs-below-tabs');
+                this.parent.appendChild(breadcrumbsContainer);
 
-	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {
-		const didChange = this.editorTabsControl.openEditor(editor, options);
+                const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupView, {
+                        showFileIcons: true,
+                        showSymbolIcons: true,
+                        showDecorationColors: false,
+                        showPlaceholder: true,
+                        dragEditor: false,
+                        showEditorTypePicker: true,
+                }));
 
-		this.handleOpenedEditors(didChange);
-	}
+                // Breadcrumbs enablement & visibility change have an impact on layout
+                // so we need to relayout the editor group when that happens.
+                this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.groupView.relayout()));
+                this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.groupView.relayout()));
 
-	openEditors(editors: EditorInput[]): void {
-		const didChange = this.editorTabsControl.openEditors(editors);
+                return breadcrumbsControlFactory;
+        }
 
-		this.handleOpenedEditors(didChange);
-	}
+        openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {
+                const didChange = this.editorTabsControl.openEditor(editor, options);
 
-	private handleOpenedEditors(didChange: boolean): void {
-		if (didChange) {
-			this.breadcrumbsControl?.update();
-		} else {
-			this.breadcrumbsControl?.revealLast();
-		}
-	}
+                this.handleOpenedEditors(didChange);
+        }
 
-	beforeCloseEditor(editor: EditorInput): void {
-		return this.editorTabsControl.beforeCloseEditor(editor);
-	}
+        openEditors(editors: EditorInput[]): void {
+                const didChange = this.editorTabsControl.openEditors(editors);
 
-	closeEditor(editor: EditorInput): void {
-		this.editorTabsControl.closeEditor(editor);
+                this.handleOpenedEditors(didChange);
+        }
 
-		this.handleClosedEditors();
-	}
+        private handleOpenedEditors(didChange: boolean): void {
+                if (didChange) {
+                        this.breadcrumbsControl?.update();
+                } else {
+                        this.breadcrumbsControl?.revealLast();
+                }
+        }
 
-	closeEditors(editors: EditorInput[]): void {
-		this.editorTabsControl.closeEditors(editors);
+        beforeCloseEditor(editor: EditorInput): void {
+                return this.editorTabsControl.beforeCloseEditor(editor);
+        }
 
-		this.handleClosedEditors();
-	}
+        closeEditor(editor: EditorInput): void {
+                this.editorTabsControl.closeEditor(editor);
 
-	private handleClosedEditors(): void {
-		if (!this.groupView.activeEditor) {
-			this.breadcrumbsControl?.update();
-		}
-	}
+                this.handleClosedEditors();
+        }
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
-		return this.editorTabsControl.moveEditor(editor, fromIndex, targetIndex, stickyStateChange);
-	}
+        closeEditors(editors: EditorInput[]): void {
+                this.editorTabsControl.closeEditors(editors);
 
-	pinEditor(editor: EditorInput): void {
-		return this.editorTabsControl.pinEditor(editor);
-	}
+                this.handleClosedEditors();
+        }
 
-	stickEditor(editor: EditorInput): void {
-		return this.editorTabsControl.stickEditor(editor);
-	}
+        private handleClosedEditors(): void {
+                if (!this.groupView.activeEditor) {
+                        this.breadcrumbsControl?.update();
+                }
+        }
 
-	unstickEditor(editor: EditorInput): void {
-		return this.editorTabsControl.unstickEditor(editor);
-	}
+        moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
+                return this.editorTabsControl.moveEditor(editor, fromIndex, targetIndex, stickyStateChange);
+        }
 
-	setActive(isActive: boolean): void {
-		return this.editorTabsControl.setActive(isActive);
-	}
+        pinEditor(editor: EditorInput): void {
+                return this.editorTabsControl.pinEditor(editor);
+        }
 
-	updateEditorSelections(): void {
-		this.editorTabsControl.updateEditorSelections();
-	}
+        stickEditor(editor: EditorInput): void {
+                return this.editorTabsControl.stickEditor(editor);
+        }
 
-	updateEditorLabel(editor: EditorInput): void {
-		return this.editorTabsControl.updateEditorLabel(editor);
-	}
+        unstickEditor(editor: EditorInput): void {
+                return this.editorTabsControl.unstickEditor(editor);
+        }
 
-	updateEditorDirty(editor: EditorInput): void {
-		return this.editorTabsControl.updateEditorDirty(editor);
-	}
+        setActive(isActive: boolean): void {
+                return this.editorTabsControl.setActive(isActive);
+        }
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+        updateEditorSelections(): void {
+                this.editorTabsControl.updateEditorSelections();
+        }
 
-		// Update editor tabs control if options changed
-		if (
-			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
-		) {
-			// Clear old
-			this.editorTabsControlDisposable.clear();
-			this.breadcrumbsControlDisposables.clear();
-			clearNode(this.parent);
+        updateEditorLabel(editor: EditorInput): void {
+                return this.editorTabsControl.updateEditorLabel(editor);
+        }
 
-			// Create new
-			this.editorTabsControl = this.createEditorTabsControl();
-			this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
-		}
+        updateEditorDirty(editor: EditorInput): void {
+                return this.editorTabsControl.updateEditorDirty(editor);
+        }
 
-		// Forward into editor tabs control
-		else {
-			this.editorTabsControl.updateOptions(oldOptions, newOptions);
-		}
-	}
+        updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
-	layout(dimensions: IEditorTitleControlDimensions): Dimension {
+                // Update Gode enabled state
+                this.useGodeTabs = this.configurationService.getValue<boolean>('gode.enabled') === true;
 
-		// Layout tabs control
-		const tabsControlDimension = this.editorTabsControl.layout(dimensions);
+                // Update editor tabs control if options changed
+                if (
+                        oldOptions.showTabs !== newOptions.showTabs ||
+                        (newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+                ) {
+                        // Clear old
+                        this.editorTabsControlDisposable.clear();
+                        this.breadcrumbsControlDisposables.clear();
+                        clearNode(this.parent);
 
-		// Layout breadcrumbs if visible
-		let breadcrumbsControlDimension: Dimension | undefined = undefined;
-		if (this.breadcrumbsControl?.isHidden() === false) {
-			breadcrumbsControlDimension = new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT);
-			this.breadcrumbsControl.layout(breadcrumbsControlDimension);
-		}
+                        // Create new
+                        this.editorTabsControl = this.createEditorTabsControl();
+                        this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
+                }
 
-		return new Dimension(
-			dimensions.container.width,
-			tabsControlDimension.height + (breadcrumbsControlDimension ? breadcrumbsControlDimension.height : 0)
-		);
-	}
+                // Forward into editor tabs control
+                else {
+                        this.editorTabsControl.updateOptions(oldOptions, newOptions);
+                }
+        }
 
-	getHeight(): IEditorGroupTitleHeight {
-		const tabsControlHeight = this.editorTabsControl.getHeight();
-		const breadcrumbsControlHeight = this.breadcrumbsControl?.isHidden() === false ? BreadcrumbsControl.HEIGHT : 0;
+        layout(dimensions: IEditorTitleControlDimensions): Dimension {
 
-		return {
-			total: tabsControlHeight + breadcrumbsControlHeight,
-			offset: tabsControlHeight
-		};
-	}
+                // Layout tabs control
+                const tabsControlDimension = this.editorTabsControl.layout(dimensions);
+
+                // Layout breadcrumbs if visible
+                let breadcrumbsControlDimension: Dimension | undefined = undefined;
+                if (this.breadcrumbsControl?.isHidden() === false) {
+                        breadcrumbsControlDimension = new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT);
+                        this.breadcrumbsControl.layout(breadcrumbsControlDimension);
+                }
+
+                return new Dimension(
+                        dimensions.container.width,
+                        tabsControlDimension.height + (breadcrumbsControlDimension ? breadcrumbsControlDimension.height : 0)
+                );
+        }
+
+        getHeight(): IEditorGroupTitleHeight {
+                const tabsControlHeight = this.editorTabsControl.getHeight();
+                const breadcrumbsControlHeight = this.breadcrumbsControl?.isHidden() === false ? BreadcrumbsControl.HEIGHT : 0;
+
+                return {
+                        total: tabsControlHeight + breadcrumbsControlHeight,
+                        offset: tabsControlHeight
+                };
+        }
 }

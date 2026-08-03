@@ -64,6 +64,29 @@ type TokenLine struct {
 	Spans []TokenSpan `json:"spans"`
 }
 
+// TabInfo describes a single editor tab for the protocol.
+type TabInfo struct {
+	Label       string `json:"label"`        // Display name (filename)
+	Description string `json:"description"` // Full path or tooltip
+	IconName    string `json:"icon_name"`   // File type icon identifier
+	IsDirty     bool   `json:"is_dirty"`    // Unsaved changes indicator
+	IsActive    bool   `json:"is_active"`   // Currently focused tab
+	IsPinned    bool   `json:"is_pinned"`   // Pinned/sticky state
+}
+
+// TabCommand is the payload for set_tabs command.
+type TabCommand struct {
+	Tabs      []TabInfo `json:"tabs"`      // List of tabs
+	ActiveIdx int       `json:"active_idx"` // Active tab index (-1 if none)
+}
+
+// TabViewportCmd sets the tab bar rendering area.
+type TabViewportCmd struct {
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	Scale  float32 `json:"scale"`
+}
+
 // Command is a JSON-line message sent from the host to the engine.
 type Command struct {
 	Cmd string `json:"cmd"`
@@ -97,6 +120,12 @@ type Command struct {
 
 	// get_content
 	ID int64 `json:"id,omitempty"`
+
+	// set_tabs - update tab bar
+	Tabs *TabCommand `json:"tabs,omitempty"`
+
+	// tab_viewport - set tab bar rendering dimensions
+	TabViewport *TabViewportCmd `json:"tab_viewport,omitempty"`
 }
 
 // Event is a JSON-line message sent from the engine to the host.
@@ -113,8 +142,8 @@ type Event struct {
 	Active *Pos `json:"active,omitempty"`
 
 	// edited
-	Range    *Range `json:"range,omitempty"`
-	EditText string `json:"edit_text,omitempty"`
+	Range    *Range  `json:"range,omitempty"`
+	EditText string  `json:"edit_text,omitempty"`
 
 	// scrolled
 	ScrollTop  float32 `json:"scroll_top,omitempty"`
@@ -123,6 +152,17 @@ type Event struct {
 	// get_content response
 	ID      int64  `json:"id,omitempty"`
 	Content string `json:"content,omitempty"`
+
+	// tab_frame - rendered tab bar frame data
+	TabWidth  int    `json:"tab_width,omitempty"`
+	TabHeight int    `json:"tab_height,omitempty"`
+	TabData   []byte `json:"tab_data,omitempty"` // RGBA pixels for tab bar
+
+	// tab_selected - user clicked a tab
+	TabSelectedIdx int `json:"tab_selected_idx,omitempty"`
+
+	// tab_close - user clicked close button on a tab
+	TabCloseIdx int `json:"tab_close_idx,omitempty"`
 }
 
 // posToEditor converts a protocol Pos to an editor.Position.
