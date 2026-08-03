@@ -1,6 +1,6 @@
 module gode/editor
 
-go 1.26.5
+go 1.19
 
 require (
 	github.com/gogpu/gg v0.50.10

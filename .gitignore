@@ -1,23 +1,46 @@
 ```
-# Compiled and build artifacts
+# Go build artifacts
 *.o
-*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
 *.out
 
-# Dependencies
+# Go cache and tools
+go.sum
+*.mod
+*.sum
 vendor/
+pkg/
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+target/
+.gradle/
 
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Logs and temp files
+*.log
+*.tmp
+
+# System files
+.DS_Store
+Thumbs.db
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 ```
