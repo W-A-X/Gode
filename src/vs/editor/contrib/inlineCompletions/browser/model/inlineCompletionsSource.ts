@@ -16,7 +16,6 @@ import { observableReducerSettable } from '../../../../../base/common/observable
 import { isDefined, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -33,7 +32,6 @@ import { IFeatureDebounceInformation } from '../../../../common/services/languag
 import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
-import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../telemetry.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
@@ -415,7 +413,6 @@ export class InlineCompletionsSource extends Disposable {
 			} finally {
 				store.dispose();
 				decreaseLoadingCount();
-				this._sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -475,83 +472,6 @@ export class InlineCompletionsSource extends Disposable {
 		}, tx);
 		s.inlineCompletions.dispose();
 		s.suggestWidgetInlineCompletions.dispose();
-	}
-
-	private _sendInlineCompletionsRequestTelemetry(
-		requestResponseInfo: RequestResponseData
-	): void {
-		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
-			return;
-		}
-
-		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
-			return;
-		}
-
-
-		if (!isCompletionsEnabledFromObject(this._completionsEnabled, this._textModel.getLanguageId())) {
-			return;
-		}
-
-		if (!requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))) {
-			return;
-		}
-
-		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
-			opportunityId: requestResponseInfo.requestUuid,
-			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
-			extensionId: 'vscode-core',
-			extensionVersion: '0.0.0',
-			groupId: 'empty',
-			shown: false,
-			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
-			skuType: requestResponseInfo.requestInfo.sku?.type,
-			editorType: requestResponseInfo.requestInfo.editorType,
-			requestReason: requestResponseInfo.requestInfo.reason,
-			typingInterval: requestResponseInfo.requestInfo.typingInterval,
-			typingIntervalCharacterCount: requestResponseInfo.requestInfo.typingIntervalCharacterCount,
-			languageId: requestResponseInfo.requestInfo.languageId,
-			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
-			availableProviders: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
-			...forwardToChannelIf(requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))),
-			timeUntilProviderRequest: undefined,
-			timeUntilProviderResponse: undefined,
-			viewKind: undefined,
-			preceeded: undefined,
-			superseded: undefined,
-			reason: undefined,
-			acceptedAlternativeAction: undefined,
-			correlationId: undefined,
-			shownDuration: undefined,
-			shownDurationUncollapsed: undefined,
-			timeUntilShown: undefined,
-			partiallyAccepted: undefined,
-			partiallyAcceptedCountSinceOriginal: undefined,
-			partiallyAcceptedRatioSinceOriginal: undefined,
-			partiallyAcceptedCharactersSinceOriginal: undefined,
-			cursorColumnDistance: undefined,
-			cursorLineDistance: undefined,
-			lineCountOriginal: undefined,
-			lineCountModified: undefined,
-			characterCountOriginal: undefined,
-			characterCountModified: undefined,
-			disjointReplacements: undefined,
-			sameShapeReplacements: undefined,
-			longDistanceHintVisible: undefined,
-			longDistanceHintDistance: undefined,
-			isForAnotherDocument: undefined,
-			notShownReason: undefined,
-			renameCreated: false,
-			renameDuration: undefined,
-			renameTimedOut: false,
-			renameDroppedOtherEdits: undefined,
-			renameDroppedRenameEdits: undefined,
-			performanceMarkers: undefined,
-			editKind: undefined,
-		};
-
-		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-		sendInlineCompletionsEndOfLifeTelemetry(dataChannel, emptyEndOfLifeEvent);
 	}
 
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {

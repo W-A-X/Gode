@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find / -type d -path \"*gogpu/ui*\" 2>/dev/null | head -5; find /Users/jiulong2023 -type d -name \"gogpu\" 2>/dev/null | head -5)",
+      "Bash(ls ~/go/pkg/mod/github.com/gogpu/ui@v0.1.48/example/ 2>/dev/null && ls ~/go/pkg/mod/github.com/gogpu/ui@v0.1.48/example/ide/ 2>/dev/null)",
+      "Read(//Users/jiulong2023/go/pkg/mod/github.com/gogpu/ui@v0.1.48/**)",
+      "Bash(cat /private/tmp/qoder-cli-cn-501/-Users-jiulong2023-Documents-Gode/d71c5c6f-2ff4-4838-b667-30e3f01511c4/tasks/bap37eknm.output)",
+      "Read(//private/tmp/qoder-cli-cn-501/-Users-jiulong2023-Documents-Gode/d71c5c6f-2ff4-4838-b667-30e3f01511c4/tasks/**)",
+      "Bash(ls /System/Volumes/Data/Users/jiulong2023/go/pkg/mod/github.com/gogpu/ui@v0.1.48/ && ls /System/Volumes/Data/Users/jiulong2023/go/pkg/mod/github.com/gogpu/ui@v0.1.48/example/ide/ 2>/dev/null || echo \"NO example dir\")",
+      "Read(//System/Volumes/Data/Users/jiulong2023/go/pkg/mod/github.com/gogpu/ui@v0.1.48/**)",
+      "Bash(cd /tmp && cat > pixcheck.go <<'EOF'\npackage main\n\nimport \\(\n\t\"fmt\"\n\t\"image/png\"\n\t\"os\"\n\\)\n\nfunc main\\(\\) {\n\tfor _, f := range []string{\"/tmp/jb-tabs.png\", \"/tmp/jb-tabs-hover.png\", \"/tmp/jb-editor.png\"} {\n\t\tfh, err := os.Open\\(f\\)\n\t\tif err != nil {\n\t\t\tfmt.Println\\(err\\)\n\t\t\tcontinue\n\t\t}\n\t\timg, err := png.Decode\\(fh\\)\n\t\tfh.Close\\(\\)\n\t\tif err != nil {\n\t\t\tfmt.Println\\(err\\)\n\t\t\tcontinue\n\t\t}\n\t\tb := img.Bounds\\(\\)\n\t\tfmt.Printf\\(\"== %s %dx%d\\\\n\", f, b.Dx\\(\\), b.Dy\\(\\)\\)\n\t\tat := func\\(x, y int\\) {\n\t\t\tr, g, bl, a := img.At\\(x, y\\).RGBA\\(\\)\n\t\t\tfmt.Printf\\(\"  \\(%d,%d\\) #%02X%02X%02X a=%02X\\\\n\", x, y, r>>8, g>>8, bl>>8, a>>8\\)\n\t\t}\n\t\tat\\(10, 5\\)   // tab bar background \\(left of first tab\\)\n\t\tat\\(100, 5\\)  // active tab area \\(main.go, above text\\)\n\t\tat\\(100, 33\\) // active tab bottom indicator\n\t\tat\\(300, 5\\)  // inactive tab area \\(server.go\\)\n\t\tat\\(380, 5\\)  // inactive tab area \\(go.mod\\)\n\t}\n}\nEOF\ngo run pixcheck.go)"
+    ]
+  }
+}

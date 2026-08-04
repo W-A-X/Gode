@@ -1,11 +1,59 @@
 package engine
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/gogpu/ui/event"
 )
+
+// TestRegisterCJKFontOnMacOS verifies that a system CJK font can be loaded and
+// registered on macOS (the platform where gode-engine is primarily developed).
+// On other platforms it is skipped so the suite stays portable.
+func TestRegisterCJKFontOnMacOS(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS-only: system CJK font discovery is platform specific")
+	}
+	if family := registerCJKFont(); family == "" {
+		t.Fatal("registerCJKFont() = \"\", want a CJK family on macOS")
+	}
+}
+
+// TestRenderCJKText exercises rendering with the registered system CJK font.
+// Regression guard for the gg rasterizer crash ("index out of range" in
+// AnalyticFiller) that occurred when styled CJK glyphs were filled.
+func TestRenderCJKText(t *testing.T) {
+	e := New(320, 200)
+	e.SetText("你好，世界 hello 中文混合 line")
+	data, ok := e.Render()
+	if !ok {
+		t.Fatal("Render returned ok=false")
+	}
+	if len(data) != 320*200*4 {
+		t.Fatalf("pixel buffer = %d bytes, want %d", len(data), 320*200*4)
+	}
+}
+
+// TestRenderCJKTextHiDPI reproduces the crash seen in the WebSocket host: a
+// DPI-scaled viewport plus a larger body of CJK text can hit a gg rasterizer
+// bug when filling styled CJK glyph outlines.
+func TestRenderCJKTextHiDPI(t *testing.T) {
+	e := New(1600, 1200)
+	e.Resize(1600, 1200, 2) // mimic macOS Retina devicePixelRatio
+	var sb strings.Builder
+	for i := 0; i < 40; i++ {
+		sb.WriteString("中文渲染引擎测试，包含各种汉字字形 abc 混合。\n")
+	}
+	e.SetText(sb.String())
+	data, ok := e.Render()
+	if !ok {
+		t.Fatal("Render returned ok=false")
+	}
+	if len(data) != 1600*1200*4 {
+		t.Fatalf("pixel buffer = %d bytes, want %d", len(data), 1600*1200*4)
+	}
+}
 
 func TestRenderProducesPixels(t *testing.T) {
 	e := New(320, 200)

@@ -53,8 +53,8 @@ import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/a
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
-import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
-import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
+/* import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js'; */
+/* import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js'; */
 
 class InspectContextKeysAction extends Action2 {
 

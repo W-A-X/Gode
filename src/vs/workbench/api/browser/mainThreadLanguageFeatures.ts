@@ -36,11 +36,8 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, IInlineCompletionProviderOptionDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
-import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
 import { IInlineCompletionsUnificationService } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
-import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../../../editor/contrib/inlineCompletions/browser/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -1332,7 +1329,6 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		private readonly _selector: IDocumentFilterDto[],
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -1377,21 +1373,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		return result;
 	}
 
-	public async handleItemDidShow(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, editDeltaInfo: EditDeltaInfo): Promise<void> {
-		if (item.suggestionId === undefined) {
-			item.suggestionId = this._aiEditTelemetryService.createSuggestionId({
-				applyCodeBlockSuggestionId: undefined,
-				feature: 'inlineSuggestion',
-				source: this.providerId,
-				languageId: completions.languageId,
-				editDeltaInfo: editDeltaInfo,
-				modeId: undefined,
-				modelId: undefined,
-				presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
-				sourceRequestId: undefined,
-			});
-		}
-
+	public async handleItemDidShow(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, _editDeltaInfo: EditDeltaInfo): Promise<void> {
 		if (this._supportsHandleEvents) {
 			await this._proxy.$handleInlineCompletionDidShow(this.handle, completions.pid, item.idx, updatedInsertText);
 		}
@@ -1418,107 +1400,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: i.pid, idx: i.idx })));
 		}
 
-		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
-			if (item.suggestionId !== undefined) {
-				this._aiEditTelemetryService.handleCodeAccepted({
-					suggestionId: item.suggestionId,
-					feature: 'inlineSuggestion',
-					source: this.providerId,
-					languageId: completions.languageId,
-					editDeltaInfo: EditDeltaInfo.tryCreate(
-						lifetimeSummary.lineCountModified,
-						lifetimeSummary.lineCountOriginal,
-						lifetimeSummary.characterCountModified,
-						lifetimeSummary.characterCountOriginal,
-					),
-					modeId: undefined,
-					modelId: undefined,
-					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
-					acceptanceMethod: 'accept',
-					applyCodeBlockSuggestionId: undefined,
-					sourceRequestId: undefined,
-				});
-			}
-		} else if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Rejected) {
-			if (item.suggestionId !== undefined) {
-				this._aiEditTelemetryService.handleCodeRejected({
-					suggestionId: item.suggestionId,
-					feature: 'inlineSuggestion',
-					source: this.providerId,
-					languageId: completions.languageId,
-					editDeltaInfo: EditDeltaInfo.tryCreate(
-						lifetimeSummary.lineCountModified,
-						lifetimeSummary.lineCountOriginal,
-						lifetimeSummary.characterCountModified,
-						lifetimeSummary.characterCountOriginal,
-					),
-					modeId: undefined,
-					modelId: undefined,
-					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
-					rejectionMethod: 'reject',
-					applyCodeBlockSuggestionId: undefined,
-					sourceRequestId: undefined,
-				});
-			}
-		}
-
-		const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
-			opportunityId: lifetimeSummary.requestUuid,
-			correlationId: lifetimeSummary.correlationId,
-			shown: lifetimeSummary.shown,
-			shownDuration: lifetimeSummary.shownDuration,
-			shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
-			timeUntilShown: lifetimeSummary.timeUntilShown,
-			timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
-			timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
-			editorType: lifetimeSummary.editorType,
-			viewKind: lifetimeSummary.viewKind,
-			preceeded: lifetimeSummary.preceeded,
-			requestReason: lifetimeSummary.requestReason,
-			typingInterval: lifetimeSummary.typingInterval,
-			typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
-			languageId: lifetimeSummary.languageId,
-			cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
-			cursorLineDistance: lifetimeSummary.cursorLineDistance,
-			lineCountOriginal: lifetimeSummary.lineCountOriginal,
-			lineCountModified: lifetimeSummary.lineCountModified,
-			characterCountOriginal: lifetimeSummary.characterCountOriginal,
-			characterCountModified: lifetimeSummary.characterCountModified,
-			disjointReplacements: lifetimeSummary.disjointReplacements,
-			sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
-			selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
-			extensionId: this.providerId.extensionId!,
-			extensionVersion: this.providerId.extensionVersion!,
-			groupId: extractEngineFromCorrelationId(lifetimeSummary.correlationId) ?? this.groupId,
-			skuPlan: lifetimeSummary.skuPlan,
-			skuType: lifetimeSummary.skuType,
-			performanceMarkers: lifetimeSummary.performanceMarkers,
-			availableProviders: lifetimeSummary.availableProviders,
-			partiallyAccepted: lifetimeSummary.partiallyAccepted,
-			partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
-			partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
-			partiallyAcceptedCharactersSinceOriginal: lifetimeSummary.partiallyAcceptedCharactersSinceOriginal,
-			superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
-			reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
-				: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
-					: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
-			acceptedAlternativeAction: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted && reason.alternativeAction,
-			noSuggestionReason: undefined,
-			notShownReason: lifetimeSummary.notShownReason,
-			renameCreated: lifetimeSummary.renameCreated,
-			renameDuration: lifetimeSummary.renameDuration,
-			renameTimedOut: lifetimeSummary.renameTimedOut,
-			renameDroppedOtherEdits: lifetimeSummary.renameDroppedOtherEdits,
-			renameDroppedRenameEdits: lifetimeSummary.renameDroppedRenameEdits,
-			editKind: lifetimeSummary.editKind,
-			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
-			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
-			isForAnotherDocument: lifetimeSummary.isForAnotherDocument,
-			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
-		};
-
-		const dataChannelForwardingTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-		sendInlineCompletionsEndOfLifeTelemetry(dataChannelForwardingTelemetryService, endOfLifeSummary);
+		// 遥测已移除 — 不再追踪 suggestion 生命周期
 	}
 
 	public disposeInlineCompletions(completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void {
@@ -1533,20 +1415,5 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 
 	override toString() {
 		return `InlineCompletionsProvider(${this.providerId.toString()})`;
-	}
-}
-
-function extractEngineFromCorrelationId(correlationId: string | undefined): string | undefined {
-	if (!correlationId) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(correlationId);
-		if (typeof parsed === 'object' && parsed !== null && typeof parsed.engine === 'string') {
-			return parsed.engine;
-		}
-		return undefined;
-	} catch {
-		return undefined;
 	}
 }

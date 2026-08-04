@@ -31,7 +31,7 @@ import './contrib/gotoSymbol/browser/goToCommands.js';
 import './contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 import './contrib/gotoError/browser/gotoError.js';
 import './contrib/gotoError/browser/markerSelectionStatus.js';
-import './contrib/gpu/browser/gpuActions.js';
+// GPU actions removed - replaced by Go-based rendering (gode-engine)
 import './contrib/hover/browser/hoverContribution.js';
 import './contrib/indentation/browser/indentation.js';
 import './contrib/inlayHints/browser/inlayHintsContribution.js';

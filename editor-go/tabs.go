@@ -1,13 +1,8 @@
 package editor
 
 import (
-	"fmt"
-	"math"
-	"strings"
-
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
-	"github.com/gogpu/ui/render"
 	"github.com/gogpu/ui/widget"
 )
 
@@ -29,7 +24,10 @@ type TabInfo struct {
 	IsHovered bool
 }
 
-// TabBar is a gogpu/ui widget that renders a VS Code-style horizontal tab bar.
+// TabBar is a gogpu/ui widget that renders a JetBrains-style horizontal tab
+// bar: the active tab merges with the editor background and carries a 2px
+// accent underline at the bottom; inactive tabs sit on the darker tab-bar
+// surface with no separators; the close button appears on hover only.
 // It handles tab layout, rendering, and mouse interaction (click, close, scroll).
 type TabBar struct {
 	widget.WidgetBase
@@ -74,7 +72,7 @@ type TabOptions struct {
 	ScrollWidth    float32
 }
 
-// DefaultTabOptions returns sensible VS Code-like defaults.
+// DefaultTabOptions returns sensible JetBrains-like defaults.
 func DefaultTabOptions() TabOptions {
 	return TabOptions{
 		Height:         35,
@@ -92,10 +90,10 @@ func DefaultTabOptions() TabOptions {
 // NewTabBar creates a new TabBar widget.
 func NewTabBar() *TabBar {
 	tb := &TabBar{
-		ActiveTabIdx: -1,
+		ActiveTabIdx:  -1,
 		HoveredTabIdx: -1,
-		dragTab:      -1,
-		TabOptions:   DefaultTabOptions(),
+		dragTab:       -1,
+		TabOptions:    DefaultTabOptions(),
 	}
 	return tb
 }
@@ -116,7 +114,7 @@ func (tb *TabBar) Update(tabs []TabInfo, activeIdx int) {
 	tb.Tabs = tabs
 	tb.ActiveTabIdx = activeIdx
 	tb.recalcLayout()
-	tb.MarkForRedraw()
+	tb.SetNeedsRedraw(true)
 }
 
 // recalcLayout computes per-tab rectangles based on current scroll position.
@@ -129,7 +127,7 @@ func (tb *TabBar) recalcLayout() {
 	}
 
 	b := tb.Bounds()
-	availableW := b.W - opts.ScrollWidth
+	availableW := b.Width() - opts.ScrollWidth
 
 	tb.tabRects = make([]geometry.Rect, n)
 	x := tb.scrollX * -1 // negative because we scroll left
@@ -138,12 +136,7 @@ func (tb *TabBar) recalcLayout() {
 		if w > availableW-x {
 			w = max(availableW-x, 0)
 		}
-		tb.tabRects[i] = geometry.Rect{
-			X: x,
-			Y: 0,
-			W: w,
-			H: opts.TabHeight,
-		}
+		tb.tabRects[i] = geometry.NewRect(x, 0, w, opts.TabHeight)
 		x += w
 		if x >= availableW {
 			break
@@ -165,40 +158,40 @@ func (tb *TabBar) tabWidth(i int) float32 {
 }
 
 // Draw implements widget.Widget.
-func (tb *TabBar) Draw(ctx render.Context) {
+func (tb *TabBar) Draw(ctx widget.Canvas) {
 	opts := tb.TabOptions
 	b := tb.Bounds()
 
 	// Background
-	ctx.Fill(geometry.Rt(b.X, b.Y, b.W, b.H), TabBackgroundColor)
+	ctx.DrawRect(b, TabBackgroundColor)
 
 	if len(tb.Tabs) == 0 || len(tb.tabRects) == 0 {
 		return
 	}
 
 	for i, tr := range tb.tabRects {
-		if tr.W <= 0 || tr.X+tr.W > b.W-opts.ScrollWidth {
+		if tr.Width() <= 0 || tr.Min.X+tr.Width() > b.Width()-opts.ScrollWidth {
 			continue
 		}
-		tb.drawTab(ctx, i, geometry.Rt(tr.X+b.X, tr.Y+b.Y, tr.W, tr.H))
+		tb.drawTab(ctx, i, geometry.NewRect(tr.Min.X+b.Min.X, tr.Min.Y+b.Min.Y, tr.Width(), tr.Height()))
 	}
 
 	// Draw scroll buttons if needed
 	totalW := tb.totalTabsWidth()
-	if totalW > b.W {
+	if totalW > b.Width() {
 		tb.drawScrollButtons(ctx, b)
 	}
 }
 
 // drawTab renders a single tab at the given rect.
-func (tb *TabBar) drawTab(ctx render.Context, idx int, r geometry.Rect) {
+func (tb *TabBar) drawTab(ctx widget.Canvas, idx int, r geometry.Rect) {
 	tab := tb.Tabs[idx]
 	opts := tb.TabOptions
 
 	isActive := idx == tb.ActiveTabIdx
 	isHovered := idx == tb.HoveredTabIdx && tb.dragTab < 0
 
-	// Tab background
+	// Tab background: active merges with the editor, hover overlays the surface.
 	var bg widget.Color
 	switch {
 	case isActive:
@@ -208,34 +201,26 @@ func (tb *TabBar) drawTab(ctx render.Context, idx int, r geometry.Rect) {
 	default:
 		bg = TabInactiveBackground
 	}
-	ctx.Fill(r, bg)
-
-	// Active tab bottom border
-	if isActive {
-		borderRect := geometry.Rt(r.X, r.Y+r.H-2, r.W, 2)
-		ctx.Fill(borderRect, TabActiveBorderColor)
-	} else {
-		// Separator line between inactive tabs
-		sepRect := geometry.Rt(r.X+r.W-1, r.Y+8, 1, r.H-16)
-		ctx.Fill(sepRect, TabSeparatorColor)
-	}
+	ctx.DrawRect(r, bg)
 
 	// Icon area (left side of tab)
-	iconX := r.X + opts.TabPadding
-	iconY := r.Y + (r.H - opts.IconSize) / 2
+	iconSize := opts.IconSize
+	iconX := r.Min.X + opts.TabPadding
+	iconY := r.Min.Y + (r.Height()-iconSize)/2
 
-	// For now, draw a simple document icon placeholder
-	// In production, this would use actual file-type icons
 	iconColor := TabInactiveForeground
 	if isActive {
 		iconColor = TabActiveForeground
 	}
-	tb.drawDocumentIcon(ctx, iconX, iconY, opts.IconSize, iconColor)
+	tb.drawDocumentIcon(ctx, iconX, iconY, iconSize, iconColor)
 
-	// Label text
-	textX := iconX + opts.IconSize + 4
-	textY := r.Y + (r.H - opts.FontSize) / 2
-	maxTextW := r.W - (textX - r.X) - opts.CloseButtonPad - opts.TabPadding
+	// Label text (JetBrains: close button only appears on hover)
+	textX := iconX + iconSize + 4
+	closeW := float32(0)
+	if isHovered && !tab.IsPinned {
+		closeW = opts.IconSize*0.75 + opts.CloseButtonPad
+	}
+	maxTextW := r.Width() - (textX - r.Min.X) - closeW - opts.TabPadding
 
 	labelColor := TabInactiveForeground
 	if isActive {
@@ -248,83 +233,75 @@ func (tb *TabBar) drawTab(ctx render.Context, idx int, r geometry.Rect) {
 		label = truncateString(label, int(maxTextW/opts.FontSize*2))
 	}
 
-	// Draw dirty indicator (dot before label)
+	// Dirty indicator (dot before label)
 	if tab.IsDirty {
-		dotX := textX
-		dotY := textY + opts.FontSize/3
-		dotR := opts.FontSize / 6
-		ctx.Fill(geometry.Circle(dotX, dotY, dotR), DirtyIndicatorColor)
-		textX += dotR*2 + 4
+		dotX := textX + 3
+		dotY := r.Min.Y + r.Height()/2
+		dotR := opts.FontSize / 7
+		ctx.DrawCircle(geometry.Pt(dotX, dotY), dotR, DirtyIndicatorColor)
+		textX += dotR*2 + 5
 	}
 
-	// Draw label
+	// Draw label (active tab is bold, matching the DevTools tabview painter)
 	if len(label) > 0 {
-		ctx.Text(label, geometry.Pt(textX, textY), labelColor, opts.FontSize)
+		ctx.DrawText(label, geometry.NewRect(textX, r.Min.Y, maxTextW, r.Height()),
+			opts.FontSize, labelColor, isActive, widget.TextAlignLeft)
 	}
 
-	// Close button (shown on hover or active tab)
-	if isActive || isHovered {
-		closeX := r.X + r.W - opts.CloseButtonPad - opts.TabPadding
-		closeY := r.Y + (r.H - opts.IconSize) / 2
+	// Active tab indicator: 2px bottom accent line (JetBrains/DevTools style).
+	if isActive {
+		ctx.DrawRect(geometry.NewRect(r.Min.X, r.Max.Y-2, r.Width(), 2), TabActiveBorderColor)
+	}
+
+	// Close button (hover only)
+	if isHovered && !tab.IsPinned {
 		closeSize := opts.IconSize * 0.75
-		tb.drawCloseButton(ctx, closeX, closeY, closeSize, idx == tb.HoveredTabIdx)
-	}
-
-	// Pinned indicator
-	if tab.IsPinned {
-		pinX := r.X + r.W - opts.CloseButtonPad - opts.TabPadding - 12
-		pinY := r.Y + 8
-		ctx.Text("📌", geometry.Pt(pinX, pinY), widget.Color{R: 0.5, G: 0.5, B: 0.5, A: 1}, 10)
+		closeX := r.Min.X + r.Width() - opts.CloseButtonPad - opts.TabPadding - closeSize
+		closeY := r.Min.Y + (r.Height()-closeSize)/2
+		tb.drawCloseButton(ctx, closeX, closeY, closeSize, true)
 	}
 }
 
 // drawDocumentIcon draws a simple document icon placeholder.
-func (tb *TabBar) drawDocumentIcon(ctx render.Context, x, y, size float32, c widget.Color) {
+func (tb *TabBar) drawDocumentIcon(ctx widget.Canvas, x, y, size float32, c widget.Color) {
 	// Simple folded-corner document shape
 	padding := size * 0.15
-	body := geometry.Rt(x+padding, y, size-padding*1.5, size-padding)
-	ctx.Stroke(body, c, 1.0)
+	body := geometry.NewRect(x+padding, y, size-padding*1.5, size-padding)
+	ctx.StrokeRect(body, c, 1.0)
 	// Fold corner
-	fold := geometry.Rt(x+size-padding*1.5, y+padding, padding*1.5, padding*1.5)
-	ctx.Fill(fold, c.MulAlpha(0.5))
+	fold := geometry.NewRect(x+size-padding*1.5, y+padding, padding*1.5, padding*1.5)
+	ctx.DrawRect(fold, c.WithAlpha(0.5))
 }
 
 // drawCloseButton draws an X close button.
-func (tb *TabBar) drawCloseButton(ctx render.Context, x, y, size float32, hovered bool) {
+func (tb *TabBar) drawCloseButton(ctx widget.Canvas, x, y, size float32, hovered bool) {
 	c := TabCloseButtonColor
 	if hovered {
 		c = TabCloseButtonHoverColor
 	}
-	half := size / 2
 	// X drawn as two lines
-	lw := 1.5
-	ctx.Line(geometry.Pt(x, y), geometry.Pt(x+size, y+size), c, lw)
-	ctx.Line(geometry.Pt(x+size, y), geometry.Pt(x, y+size), c, lw)
+	lw := float32(1.5)
+	ctx.DrawLine(geometry.Pt(x, y), geometry.Pt(x+size, y+size), c, lw)
+	ctx.DrawLine(geometry.Pt(x+size, y), geometry.Pt(x, y+size), c, lw)
 }
 
 // drawScrollButtons draws left/right scroll arrows when tabs overflow.
-func (tb *TabBar) drawScrollButtons(ctx render.Context, b geometry.Rect) {
+func (tb *TabBar) drawScrollButtons(ctx widget.Canvas, b geometry.Rect) {
 	opts := tb.TabOptions
 	btnH := opts.Height
 	btnW := opts.ScrollWidth
 
 	// Left scroll button
-	leftBtn := geometry.Rt(b.X+b.W-btnW*2, b.Y, btnW, btnH)
-	ctx.Fill(leftBtn, TabBackgroundColor)
-	ctx.Stroke(leftBtn, TabSeparatorColor, 1.0)
-	// Left arrow
-	ax := leftBtn.X + btnW/3
-	ay := leftBtn.Y + btnH/2
-	ctx.Text("◀", geometry.Pt(ax, ay-opts.FontSize/2), TabInactiveForeground, opts.FontSize*0.8)
+	leftBtn := geometry.NewRect(b.Min.X+b.Width()-btnW*2, b.Min.Y, btnW, btnH)
+	ctx.DrawRect(leftBtn, TabBackgroundColor)
+	ctx.StrokeRect(leftBtn, TabSeparatorColor, 1.0)
+	ctx.DrawText("◀", leftBtn, opts.FontSize*0.8, TabInactiveForeground, false, widget.TextAlignCenter)
 
 	// Right scroll button
-	rightBtn := geometry.Rt(b.X+b.W-btnW, b.Y, btnW, btnH)
-	ctx.Fill(rightBtn, TabBackgroundColor)
-	ctx.Stroke(rightBtn, TabSeparatorColor, 1.0)
-	// Right arrow
-	ax = rightBtn.X + btnW/3
-	ay = rightBtn.Y + btnH/2
-	ctx.Text("▶", geometry.Pt(ax, ay-opts.FontSize/2), TabInactiveForeground, opts.FontSize*0.8)
+	rightBtn := geometry.NewRect(b.Min.X+b.Width()-btnW, b.Min.Y, btnW, btnH)
+	ctx.DrawRect(rightBtn, TabBackgroundColor)
+	ctx.StrokeRect(rightBtn, TabSeparatorColor, 1.0)
+	ctx.DrawText("▶", rightBtn, opts.FontSize*0.8, TabInactiveForeground, false, widget.TextAlignCenter)
 }
 
 // HandleEvent implements mouse event handling for tabs.
@@ -334,25 +311,22 @@ func (tb *TabBar) HandleEvent(ev event.Event) bool {
 		return false
 	}
 
-	pos := me.Position()
-	b := tb.Bounds()
-	localPos := geometry.Pt(pos.X-b.X, pos.Y-b.Y)
-
-	switch me.Type() {
+	pos := me.Position
+	switch me.MouseType {
 	case event.MousePress:
-		return tb.handlePress(localPos, me.Button())
+		return tb.handlePress(pos, me.Button)
 	case event.MouseRelease:
-		return tb.handleRelease(localPos, me.Button())
+		return tb.handleRelease(pos, me.Button)
 	case event.MouseMove:
-		return tb.handleMove(localPos)
+		return tb.handleMove(pos)
 	case event.MouseDoubleClick:
-		return tb.handleDoubleClick(localPos)
+		return tb.handleDoubleClick(pos)
 	}
 	return false
 }
 
 // handlePress handles mouse press events.
-func (tb *TabBar) handlePress(pos geometry.Pos, btn event.Button) bool {
+func (tb *TabBar) handlePress(pos geometry.Point, btn event.Button) bool {
 	idx := tb.tabAt(pos)
 	if idx >= 0 {
 		if btn == event.ButtonRight && tb.OnTabContextMenu != nil {
@@ -375,7 +349,7 @@ func (tb *TabBar) handlePress(pos geometry.Pos, btn event.Button) bool {
 }
 
 // handleRelease handles mouse release events.
-func (tb *TabBar) handleRelease(pos geometry.Pos, btn event.Button) bool {
+func (tb *TabBar) handleRelease(pos geometry.Point, btn event.Button) bool {
 	if tb.dragTab >= 0 {
 		tb.dragTab = -1
 		return true
@@ -384,26 +358,26 @@ func (tb *TabBar) handleRelease(pos geometry.Pos, btn event.Button) bool {
 }
 
 // handleMove handles mouse move events for hover effect.
-func (tb *TabBar) handleMove(pos geometry.Pos) bool {
+func (tb *TabBar) handleMove(pos geometry.Point) bool {
 	newHovered := tb.tabAt(pos)
 	if newHovered != tb.HoveredTabIdx {
 		tb.HoveredTabIdx = newHovered
-		tb.MarkForRedraw()
+		tb.SetNeedsRedraw(true)
 	}
 	return tb.HoveredTabIdx >= 0
 }
 
 // handleDoubleClick handles double-click events.
-func (tb *TabBar) handleDoubleClick(pos geometry.Pos) bool {
+func (tb *TabBar) handleDoubleClick(pos geometry.Point) bool {
 	// Could be used for "pin tab" or other actions
 	return false
 }
 
 // tabAt returns the tab index at the given local position, or -1 if none.
-func (tb *TabBar) tabAt(pos geometry.Pos) int {
+func (tb *TabBar) tabAt(pos geometry.Point) int {
 	for i, tr := range tb.tabRects {
-		if pos.X >= tr.X && pos.X < tr.X+tr.W &&
-			pos.Y >= tr.Y && pos.Y < tr.Y+tr.H {
+		if pos.X >= tr.Min.X && pos.X < tr.Min.X+tr.Width() &&
+			pos.Y >= tr.Min.Y && pos.Y < tr.Min.Y+tr.Height() {
 			return i
 		}
 	}
@@ -411,39 +385,40 @@ func (tb *TabBar) tabAt(pos geometry.Pos) int {
 }
 
 // isOnCloseButton checks if position is on the close button of the given tab.
-func (tb *TabBar) isOnCloseButton(pos geometry.Pos, tabIdx int) bool {
+func (tb *TabBar) isOnCloseButton(pos geometry.Point, tabIdx int) bool {
 	if tabIdx < 0 || tabIdx >= len(tb.tabRects) {
 		return false
 	}
 	tr := tb.tabRects[tabIdx]
 	opts := tb.TabOptions
-	closeX := tr.X + tr.W - opts.CloseButtonPad - opts.TabPadding
-	closeY := 0
-	closeW := opts.IconSize * 0.75
-	closeH := opts.IconSize * 0.75
+	closeSize := opts.IconSize * 0.75
+	closeX := tr.Min.X + tr.Width() - opts.CloseButtonPad - opts.TabPadding - closeSize
+	closeY := float32(0)
+	closeW := closeSize
+	closeH := closeSize
 
 	return pos.X >= closeX && pos.X < closeX+closeW &&
 		pos.Y >= closeY && pos.Y < closeY+closeH
 }
 
 // handleScrollButtonClick handles clicks on scroll buttons.
-func (tb *TabBar) handleScrollButtonClick(pos geometry.Pos) bool {
+func (tb *TabBar) handleScrollButtonClick(pos geometry.Point) bool {
 	opts := tb.TabOptions
 	b := tb.Bounds()
 	btnW := opts.ScrollWidth
 
 	// Left button
-	leftBtn := geometry.Rt(b.W-btnW*2, 0, btnW, opts.Height)
-	if pos.X >= leftBtn.X && pos.X < leftBtn.X+leftBtn.W &&
-		pos.Y >= leftBtn.Y && pos.Y < leftBtn.Y+leftBtn.H {
+	leftBtn := geometry.NewRect(b.Width()-btnW*2, 0, btnW, opts.Height)
+	if pos.X >= leftBtn.Min.X && pos.X < leftBtn.Min.X+leftBtn.Width() &&
+		pos.Y >= leftBtn.Min.Y && pos.Y < leftBtn.Min.Y+leftBtn.Height() {
 		tb.scrollLeft()
 		return true
 	}
 
 	// Right button
-	rightBtn := geometry.Rt(b.W-btnW, 0, btnW, opts.Height)
-	if pos.X >= rightBtn.X && pos.X < rightBtn.X+rightBtn.W &&
-		pos.Y >= rightBtn.Y && pos.Y < rightBtn.Y+rightBtn.H {
+	rightBtn := geometry.NewRect(b.Width()-btnW, 0, btnW, opts.Height)
+	if pos.X >= rightBtn.Min.X && pos.X < rightBtn.Min.X+rightBtn.Width() &&
+		pos.Y >= rightBtn.Min.Y && pos.Y < rightBtn.Min.Y+rightBtn.Height() {
 		tb.scrollRight()
 		return true
 	}
@@ -455,7 +430,7 @@ func (tb *TabBar) handleScrollButtonClick(pos geometry.Pos) bool {
 func (tb *TabBar) scrollLeft() {
 	tb.scrollX = max(tb.scrollX-100, 0)
 	tb.recalcLayout()
-	tb.MarkForRedraw()
+	tb.SetNeedsRedraw(true)
 }
 
 // scrollRight scrolls the tab bar to show tabs on the right.
@@ -463,7 +438,7 @@ func (tb *TabBar) scrollRight() {
 	maxScroll := tb.maxScrollX()
 	tb.scrollX = min(tb.scrollX+100, maxScroll)
 	tb.recalcLayout()
-	tb.MarkForRedraw()
+	tb.SetNeedsRedraw(true)
 }
 
 // totalTabsWidth returns the total width of all tabs.
@@ -479,7 +454,7 @@ func (tb *TabBar) totalTabsWidth() float32 {
 func (tb *TabBar) maxScrollX() float32 {
 	b := tb.Bounds()
 	total := tb.totalTabsWidth()
-	available := b.W - tb.TabOptions.ScrollWidth
+	available := b.Width() - tb.TabOptions.ScrollWidth
 	return max(0, total-available)
 }
 
@@ -490,19 +465,19 @@ func (tb *TabBar) EnsureVisible(idx int) {
 	}
 	tr := tb.tabRects[idx]
 	b := tb.Bounds()
-	available := b.W - tb.TabOptions.ScrollWidth
+	available := b.Width() - tb.TabOptions.ScrollWidth
 
 	// Scroll left if tab starts before visible area
-	if tr.X < tb.scrollX*-1 {
-		tb.scrollX = -tr.X
+	if tr.Min.X < tb.scrollX*-1 {
+		tb.scrollX = -tr.Min.X
 	}
 	// Scroll right if tab ends after visible area
-	if tr.X+tr.W > available+tb.scrollX*-1 {
-		tb.scrollX = -(tr.X + tr.W - available)
+	if tr.Min.X+tr.Width() > available+tb.scrollX*-1 {
+		tb.scrollX = -(tr.Min.X + tr.Width() - available)
 	}
 	tb.scrollX = max(0, min(tb.scrollX, tb.maxScrollX()))
 	tb.recalcLayout()
-	tb.MarkForRedraw()
+	tb.SetNeedsRedraw(true)
 }
 
 // truncateString shortens a string to fit within maxRunes, adding "...".
@@ -517,31 +492,31 @@ func truncateString(s string, maxRunes int) string {
 	return string(runes[:maxRunes-3]) + "..."
 }
 
-// --- VS Code Dark+ Theme Colors for Tabs ---
+// --- JetBrains DevTools Dark Tab Colors (gogpu/ui examples/ide palette) ---
 
 var (
-	// TabBackgroundColor is the tab bar background.
-	TabBackgroundColor = widget.Color{R: 0.25, G: 0.25, B: 0.28, A: 1.0}
-	// TabActiveBackground is the active tab background color.
-	TabActiveBackground = widget.Color{R: 0.30, G: 0.30, B: 0.33, A: 1.0}
-	// TabInactiveBackground is the inactive tab background color.
-	TabInactiveBackground = widget.Color{R: 0.25, G: 0.25, B: 0.28, A: 1.0}
-	// TabHoverBackground is the hover state background.
-	TabHoverBackground = widget.Color{R: 0.28, G: 0.28, B: 0.31, A: 1.0}
-	// TabActiveBorderColor is the bottom border of the active tab.
-	TabActiveBorderColor = widget.Color{R: 0.15, G: 0.65, B: 0.73, A: 1.0} // VS Code blue accent
-	// TabSeparatorColor is the line between tabs.
-	TabSeparatorColor = widget.Color{R: 0.35, G: 0.35, B: 0.38, A: 1.0}
-	// TabActiveForeground is the text color for active tab.
-	TabActiveForeground = widget.Color{R: 0.97, G: 0.97, B: 0.97, A: 1.0}
-	// TabInactiveForeground is the text color for inactive tabs.
-	TabInactiveForeground = widget.Color{R: 0.70, G: 0.70, B: 0.72, A: 1.0}
-	// TabCloseButtonColor is the normal close button color.
-	TabCloseButtonColor = widget.Color{R: 0.55, G: 0.55, B: 0.57, A: 1.0}
-	// TabCloseButtonHoverColor is the close button color on hover.
-	TabCloseButtonHoverColor = widget.Color{R: 0.97, G: 0.97, B: 0.97, A: 1.0}
-	// DirtyIndicatorColor is the circle indicating unsaved changes.
-	DirtyIndicatorColor = widget.Color{R: 0.15, G: 0.65, B: 0.73, A: 1.0} // Accent blue
+	// TabBackgroundColor is the tab bar background (Surface Gray2).
+	TabBackgroundColor = widget.RGBA8(0x2B, 0x2D, 0x30, 0xFF)
+	// TabActiveBackground merges with the editor background (Gray1).
+	TabActiveBackground = widget.RGBA8(0x1E, 0x1F, 0x22, 0xFF)
+	// TabInactiveBackground matches the tab bar surface.
+	TabInactiveBackground = widget.RGBA8(0x2B, 0x2D, 0x30, 0xFF)
+	// TabHoverBackground is the hover state (SurfaceElevated Gray3).
+	TabHoverBackground = widget.RGBA8(0x39, 0x3B, 0x40, 0xFF)
+	// TabActiveBorderColor is the 2px bottom indicator of the active tab (Blue6).
+	TabActiveBorderColor = widget.RGBA8(0x35, 0x74, 0xF0, 0xFF)
+	// TabSeparatorColor is used for the scroll-button outline (Gray3).
+	TabSeparatorColor = widget.RGBA8(0x39, 0x3B, 0x40, 0xFF)
+	// TabActiveForeground is the text color for active tab (Gray12).
+	TabActiveForeground = widget.RGBA8(0xDF, 0xE1, 0xE5, 0xFF)
+	// TabInactiveForeground is the text color for inactive tabs (Gray9).
+	TabInactiveForeground = widget.RGBA8(0x9D, 0xA0, 0xA8, 0xFF)
+	// TabCloseButtonColor is the normal close button color (Gray9).
+	TabCloseButtonColor = widget.RGBA8(0x9D, 0xA0, 0xA8, 0xFF)
+	// TabCloseButtonHoverColor is the close button color on hover (Gray12).
+	TabCloseButtonHoverColor = widget.RGBA8(0xDF, 0xE1, 0xE5, 0xFF)
+	// DirtyIndicatorColor is the circle indicating unsaved changes (Gray9).
+	DirtyIndicatorColor = widget.RGBA8(0x9D, 0xA0, 0xA8, 0xFF)
 )
 
 func min(a, b float32) float32 {
@@ -556,28 +531,4 @@ func max(a, b float32) float32 {
 		return a
 	}
 	return b
-}
-
-// String returns a debug representation of the TabBar.
-func (tb *TabBar) String() string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "TabBar{tabs=%d, active=%d", len(tb.Tabs), tb.ActiveTabIdx)
-	if tb.HoveredTabIdx >= 0 {
-		fmt.Fprintf(&sb, ", hovered=%d", tb.HoveredTabIdx)
-	}
-	sb.WriteByte('}')
-	return sb.String()
-}
-
-// WheelEvent handles horizontal scrolling via wheel events.
-func (tb *TabBar) WheelEvent(deltaX, deltaY float32) bool {
-	if math.Abs(float64(deltaX)) > 0.1 || math.Abs(float64(deltaY)) > 0.1 {
-		// Horizontal scroll or shift+vertical scroll
-		scrollAmt := deltaX + deltaY
-		tb.scrollX = max(0, min(tb.scrollX-scrollAmt, tb.maxScrollX()))
-		tb.recalcLayout()
-		tb.MarkForRedraw()
-		return true
-	}
-	return false
 }

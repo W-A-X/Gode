@@ -45,9 +45,9 @@ import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/a
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
-import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
+/* import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js'; */
+/* import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js'; */
+/* import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js'; */
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatModeKind } from '../common/constants.js';

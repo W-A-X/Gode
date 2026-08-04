@@ -84,11 +84,19 @@ func New(width, height int) *Engine {
         opts := editor.DefaultOptions()
         v := editor.NewEditorView(model, opts)
 
-        provider := &fixedWindowProvider{w: width, h: height}
-        uiApp := app.New(app.WithWindowProvider(provider))
-        uiApp.SetRoot(v)
+	// Register a system CJK font so Chinese/Japanese/Korean glyphs render
+	// instead of the Inter tofu boxes. When no usable font is found the view
+	// keeps the previous Inter-only behaviour.
+	if family := registerCJKFont(); family != "" {
+		v.SetCJKFontFamily(family)
+	}
+
+	provider := &fixedWindowProvider{w: width, h: height}
+	uiApp := app.New(app.WithWindowProvider(provider))
+	uiApp.SetRoot(v)
 
         // Initialize tab bar
+        var e *Engine
         tb := editor.NewTabBar()
         tb.OnTabSelected = func(idx int) {
                 if e.OnTabSelected != nil {
@@ -101,7 +109,7 @@ func New(width, height int) *Engine {
                 }
         }
 
-        e := &Engine{
+        e = &Engine{
                 cc:       cc,
                 canvas:   c,
                 app:      uiApp,
@@ -363,7 +371,7 @@ func (e *Engine) SetTabViewport(w, h int, scale float32) {
         e.tabCanvas = render.NewCanvas(e.tabCC, w, h)
 
         // Update tab bar bounds
-        e.tabBar.SetBounds(geometry.Rt(0, 0, float32(w), float32(h)))
+        e.tabBar.SetBounds(geometry.NewRect(0, 0, float32(w), float32(h)))
         e.tabsDirty = true
 }
 
@@ -373,15 +381,14 @@ func (e *Engine) RenderTabBar() ([]byte, bool) {
         if !e.tabsDirty {
                 return nil, false
         }
-        if e.tabCC == nil || e.tabCanvas.Canvas == nil {
+        if e.tabCC == nil || e.tabCanvas == nil {
                 return nil, false
         }
 
         // Draw tab bar to its canvas
-        ctx := e.tabCanvas.Context()
-        ctx.PushClip(geometry.Rt(0, 0, float32(e.tabWidth), float32(e.tabHeight)))
-        e.tabBar.Draw(ctx)
-        ctx.PopClip()
+        e.tabCanvas.PushClip(geometry.NewRect(0, 0, float32(e.tabWidth), float32(e.tabHeight)))
+        e.tabBar.Draw(e.tabCanvas)
+        e.tabCanvas.PopClip()
 
         data := e.tabCC.ResizeTarget().Data()
         out := make([]byte, len(data))

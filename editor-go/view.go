@@ -55,6 +55,12 @@ type EditorView struct {
 	// input mapping must use real measurements or the caret overlaps glyphs
 	// and Backspace/click delete the visually wrong character.
 	lastCanvas widget.Canvas
+
+	// cjkFontFamily is the family name (registered in the rendering
+	// pipeline's global font registry) used for CJK glyphs. Empty when no
+	// CJK font is available: CJK characters then fall back to Inter and
+	// render as tofu boxes, exactly as before.
+	cjkFontFamily string
 }
 
 // TokenSpan is a colored, half-open column range [Start, End) on a line.
@@ -85,6 +91,14 @@ func (v *EditorView) SetTokens(spans map[int][]TokenSpan) {
 // SetBreakpoints replaces the set of 1-based lines with a breakpoint marker.
 func (v *EditorView) SetBreakpoints(bp map[int]bool) {
 	v.breakpoints = bp
+	v.SetNeedsRedraw(true)
+}
+
+// SetCJKFontFamily sets the family name used to render CJK glyphs. The family
+// must have been registered with the rendering pipeline's global font
+// registry (see engine.registerCJKFont). Pass "" to disable CJK fallback.
+func (v *EditorView) SetCJKFontFamily(name string) {
+	v.cjkFontFamily = name
 	v.SetNeedsRedraw(true)
 }
 
@@ -252,25 +266,27 @@ func (v *EditorView) Draw(ctx widget.Context, canvas widget.Canvas) {
 
 // drawLineText renders a line's text split into colored token spans. It walks
 // the runes once, tracking the text-area-relative x (tabs advance to the next
-// tab stop via VM.advanceToTabStop, matching ColumnToX), and flushes maximal
-// runs of equal color with a single DrawText. Runes not covered by any span
-// use the default foreground color; this is what restores VS Code's built-in
-// syntax highlighting, which the host resolves from the theme color map.
+// tab stop via VM.advanceToTabStop), and flushes maximal runs of equal color
+// with a single DrawText. Runes not covered by any span use the default
+// foreground color; this is what restores VS Code's built-in syntax
+// highlighting, which the host resolves from the theme color map.
+//
+// Runs are additionally split by font: CJK runes render with the registered
+// CJK font (StyledTextDrawer) while everything else keeps the default font.
+// Both DrawText and DrawStyledText draw at the *measured* advance of the run,
+// so adjacent spans never overlap or leave gaps even though the default font
+// is proportional and CJK glyphs are wider than the CharWidth layout cell.
 func (v *EditorView) drawLineText(canvas widget.Canvas, line int, content string, lineTop, baseX float32, size geometry.Size, lh float32) {
 	runes := []rune(content)
 	spans := v.tokens[line]
 
-	// textX tracks the layout position (CharWidth-based, matching ColumnToX)
-	// for cursor/selection alignment and tab stops. renderX tracks the actual
-	// on-screen position measured from the real font. The two diverge because
-	// the default font is proportional: a run whose glyphs are wider than the
-	// space cell would overlap the next run if positions were advanced by
-	// CharWidth alone (the exact bug this fixes). Each run is drawn at
+	// renderX tracks the actual on-screen position measured from the real
+	// fonts (Inter for Latin, CJK font for CJK glyphs). Each run is drawn at
 	// renderX, then renderX advances by the measured width of that run.
-	textX := float32(0)   // layout x, CharWidth-based
-	renderX := float32(0) // actual rendering x, measured width-based
+	renderX := float32(0) // rendering x, measured width-based
 	runStartX := float32(0)
 	runColor := foregroundColor
+	runCJK := false
 	var runBuf []rune
 
 	flush := func() {
@@ -278,19 +294,26 @@ func (v *EditorView) drawLineText(canvas widget.Canvas, line int, content string
 			return
 		}
 		text := string(runBuf)
-		canvas.DrawText(
-			text,
-			geometry.Rect{
-				Min: geometry.Pt(baseX+runStartX, lineTop),
-				Max: geometry.Pt(size.Width, lineTop+lh),
-			},
-			v.Options.FontSize,
-			runColor,
-			false,
-			widget.TextAlignLeft,
-		)
-		// The next run starts where this run actually ended on screen, so
-		// adjacent colored spans never overlap or leave gaps.
+		bounds := geometry.Rect{
+			Min: geometry.Pt(baseX+runStartX, lineTop),
+			Max: geometry.Pt(size.Width, lineTop+lh),
+		}
+		useCJK := runCJK && v.cjkFontFamily != ""
+		if useCJK {
+			if sd, ok := canvas.(widget.StyledTextDrawer); ok {
+				style := widget.TextStyle{
+					FontFamily: v.cjkFontFamily,
+					FontSize:   v.Options.FontSize,
+					Color:      runColor,
+					Align:      widget.TextAlignLeft,
+				}
+				sd.DrawStyledText(text, bounds, style)
+				renderX = runStartX + sd.MeasureStyledText(text, style)
+				runBuf = runBuf[:0]
+				return
+			}
+		}
+		canvas.DrawText(text, bounds, v.Options.FontSize, runColor, false, widget.TextAlignLeft)
 		renderX = runStartX + canvas.MeasureText(text, v.Options.FontSize, false)
 		runBuf = runBuf[:0]
 	}
@@ -298,30 +321,60 @@ func (v *EditorView) drawLineText(canvas widget.Canvas, line int, content string
 	for i, r := range runes {
 		col := i + 1
 		color := tokenColorAt(spans, col, foregroundColor)
+		cjk := v.cjkFontFamily != "" && needsCJKFont(r)
 
 		if r == '\t' {
 			flush()
-			textX = v.VM.advanceToTabStop(textX)
-			// A tab renders as blank up to the next tab stop; resume measuring
-			// from that layout position.
-			renderX = textX
+			renderX = v.VM.advanceToTabStop(renderX)
 			runStartX = renderX
 			runColor = color
+			runCJK = false
 			continue
 		}
 
 		if len(runBuf) == 0 {
 			runStartX = renderX
 			runColor = color
-		} else if color != runColor {
+			runCJK = cjk
+		} else if color != runColor || cjk != runCJK {
 			flush()
 			runStartX = renderX
 			runColor = color
+			runCJK = cjk
 		}
 		runBuf = append(runBuf, r)
-		textX += v.VM.CharWidth
 	}
 	flush()
+}
+
+// needsCJKFont reports whether the rune requires a CJK font. Inter (the
+// embedded default) contains no CJK glyphs, so without a registered CJK
+// family these characters render as tofu boxes.
+func needsCJKFont(r rune) bool {
+	switch {
+	case r >= 0x1100 && r <= 0x11FF: // Hangul Jamo
+	case r >= 0x2E80 && r <= 0x9FFF: // CJK radicals .. unified ideographs (incl. kana 3040-30FF)
+	case r >= 0xAC00 && r <= 0xD7AF: // Hangul syllables
+	case r >= 0xF900 && r <= 0xFAFF: // CJK compatibility ideographs
+	case r >= 0xFE30 && r <= 0xFE4F: // CJK compatibility forms
+	case r >= 0xFF00 && r <= 0xFFEF: // halfwidth/fullwidth forms
+	case r >= 0x20000 && r <= 0x2FFFF: // CJK ideographs extension B+
+	default:
+		return false
+	}
+	return true
+}
+
+// measureRune returns the rendered width of a single rune at the current font
+// size, using the registered CJK font for CJK glyphs when available and the
+// canvas supports styled text.
+func (v *EditorView) measureRune(canvas widget.Canvas, r rune) float32 {
+	if v.cjkFontFamily != "" && needsCJKFont(r) {
+		if sd, ok := canvas.(widget.StyledTextDrawer); ok {
+			return sd.MeasureStyledText(string(r), widget.TextStyle{FontFamily: v.cjkFontFamily, FontSize: v.Options.FontSize})
+		}
+	}
+	return canvas.MeasureText(string(r), v.Options.FontSize, false)
 }
 
 // tokenColorAt returns the color of the token span covering the 1-based
@@ -463,7 +516,10 @@ func (v *EditorView) handleMouse(ctx widget.Context, e *event.MouseEvent) bool {
 	case event.MouseDrag, event.MouseMove:
 		// While the left button is held, drags extend the selection. The press
 		// handler captured the pointer, so moves outside the bounds also arrive.
-		if !v.dragging || !e.Buttons.IsLeftPressed() {
+		// Host move events do not carry button state (BuildMouseEvent leaves
+		// Buttons zero for MouseMove), so v.dragging — set on press and cleared
+		// on release — is the source of truth here.
+		if !v.dragging {
 			return false
 		}
 		pos := v.positionFromPixel(local)
@@ -811,7 +867,7 @@ func (v *EditorView) xToColumnReal(line int, x float32) int {
 		if ch == '\t' {
 			w = v.VM.advanceToTabStop(cur) - cur
 		} else {
-			w = c.MeasureText(string(ch), v.Options.FontSize, false)
+			w = v.measureRune(c, ch)
 		}
 		if x < cur+w/2 {
 			return col
@@ -839,7 +895,7 @@ func (v *EditorView) renderXForColumn(canvas widget.Canvas, line, col int) float
 		if ch == '\t' {
 			x = v.VM.advanceToTabStop(x)
 		} else {
-			x += canvas.MeasureText(string(ch), v.Options.FontSize, false)
+			x += v.measureRune(canvas, ch)
 		}
 	}
 	return x

@@ -7,8 +7,9 @@ import { Event } from '../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
-import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
 import { AgentHostIpcChannels, IAgentService } from '../../platform/agentHost/common/agentService.js';
+
+function reportAgentHostProcessError(_telemetryService: unknown, _data: Record<string, unknown>): void { }
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../platform/log/common/logIpc.js';

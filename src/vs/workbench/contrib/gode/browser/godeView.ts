@@ -404,7 +404,11 @@ export class GodeView extends View {
 		}, true);
 
 		domNode.addEventListener('mousemove', (e: MouseEvent) => {
-			this._client.sendMouse('move', e);
+			// The engine's press handler sets its internal dragging flag; while
+			// the left button is held, moves must be reported as 'drag' so the
+			// engine extends the selection. Plain 'move' events carry no button
+			// state to the engine and would be ignored during a drag.
+			this._client.sendMouse((e.buttons & 1) ? 'drag' : 'move', e);
 		}, true);
 
 		domNode.addEventListener('mouseup', (e: MouseEvent) => {

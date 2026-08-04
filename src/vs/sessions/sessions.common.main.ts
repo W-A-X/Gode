@@ -202,9 +202,6 @@ registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType
 // Default Account
 import '../workbench/services/accounts/browser/defaultAccount.js';
 
-// Telemetry
-import '../workbench/contrib/telemetry/browser/telemetry.contribution.js';
-
 // Preferences
 import '../workbench/contrib/preferences/browser/preferences.contribution.js';
 import '../workbench/contrib/preferences/browser/keybindingsEditorContribution.js';
@@ -440,9 +437,6 @@ import '../workbench/contrib/inlineCompletions/browser/inlineCompletions.contrib
 
 // Drop or paste into
 import '../workbench/contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
-
-// Edit Telemetry
-import '../workbench/contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 // Opener
 import '../workbench/contrib/opener/browser/opener.contribution.js';

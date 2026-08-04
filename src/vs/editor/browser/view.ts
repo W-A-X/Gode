@@ -35,7 +35,7 @@ import { IViewModel } from '../common/viewModel.js';
 import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
-import { ViewGpuContext } from './gpu/viewGpuContext.js';
+// ViewGpuContext removed - replaced by Go-based rendering (gode-engine)
 import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
@@ -81,7 +81,6 @@ export class View extends ViewEventHandler {
 	private _widgetFocusTracker: CodeEditorWidgetFocusTracker;
 
 	private readonly _context: ViewContext;
-	private readonly _viewGpuContext?: ViewGpuContext;
 	private _selections: Selection[];
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
@@ -173,9 +172,7 @@ export class View extends ViewEventHandler {
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 		this.domNode.setAttribute('role', 'code');
 
-		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
-			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
-		}
+		// GPU acceleration disabled - using Go-based rendering instead
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -195,9 +192,7 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._contentWidgets.domNode);
 		this._overflowGuardContainer.appendChild(this._linesContent);
 		this._overflowGuardContainer.appendChild(this._viewZones.marginDomNode);
-		if (this._viewGpuContext) {
-			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
-		}
+		// Canvas removed - using Go-based rendering instead
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this.domNode.appendChild(this._overflowGuardContainer);
 
@@ -376,7 +371,7 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets.overflowingOverlayWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
-		this._viewGpuContext?.dispose();
+		// _viewGpuContext disposed - using Go-based rendering
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {

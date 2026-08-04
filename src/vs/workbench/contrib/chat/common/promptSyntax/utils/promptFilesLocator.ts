@@ -27,7 +27,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+/* import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js'; */
 
 /**
  * Maximum recursion depth when traversing subdirectories for instruction files.

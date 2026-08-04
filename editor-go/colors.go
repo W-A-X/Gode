@@ -2,19 +2,19 @@ package editor
 
 import "github.com/gogpu/ui/widget"
 
-// VS Code dark theme palette.
+// JetBrains Int UI dark palette (devtools DarkScheme from gogpu/ui examples/ide).
 var (
 	// Editor colors.
-	backgroundColor         = widget.RGBA8(0x1E, 0x1E, 0x1E, 0xFF)
-	foregroundColor         = widget.RGBA8(0xD4, 0xD4, 0xD4, 0xFF)
-	currentLineColor        = widget.RGBA8(0x2A, 0x2A, 0x2A, 0xFF)
-	selectionColor          = widget.RGBA8(0x26, 0x4F, 0x78, 0xFF)
-	cursorColor             = widget.RGBA8(0xAE, 0xAF, 0xAD, 0xFF)
-	cursorUnfocusedColor    = widget.RGBA8(0xAE, 0xAF, 0xAD, 0x60)
-	lineNumberColor         = widget.RGBA8(0x85, 0x85, 0x85, 0xFF)
-	activeLineNumberColor   = widget.RGBA8(0xC6, 0xC6, 0xC6, 0xFF)
-	scrollbarSliderColor    = widget.RGBA8(0x79, 0x79, 0x79, 0x55)
-	scrollbarSliderHover    = widget.RGBA8(0x79, 0x79, 0x79, 0x88)
+	backgroundColor         = widget.RGBA8(0x1E, 0x1F, 0x22, 0xFF) // Gray1, editor area
+	foregroundColor         = widget.RGBA8(0xDF, 0xE1, 0xE5, 0xFF) // Gray12, OnSurface
+	currentLineColor        = widget.RGBA8(0x2B, 0x2D, 0x30, 0xFF) // Gray2, caret row
+	selectionColor          = widget.RGBA8(0x2E, 0x43, 0x6E, 0xFF) // Blue2, selection
+	cursorColor             = widget.RGBA8(0xDF, 0xE1, 0xE5, 0xFF)
+	cursorUnfocusedColor    = widget.RGBA8(0xDF, 0xE1, 0xE5, 0x60)
+	lineNumberColor         = widget.RGBA8(0x6F, 0x73, 0x7A, 0xFF) // Gray7, gutter
+	activeLineNumberColor   = widget.RGBA8(0x9D, 0xA0, 0xA8, 0xFF) // Gray9, caret-row gutter
+	scrollbarSliderColor    = widget.RGBA8(0x4E, 0x51, 0x57, 0x99) // Gray5
+	scrollbarSliderHover    = widget.RGBA8(0x6F, 0x73, 0x7A, 0xCC) // Gray7
 	// breakpointColor matches VS Code's debug breakpoint red (E51400).
 	breakpointColor = widget.RGBA8(0xE5, 0x14, 0x00, 0xFF)
 )
