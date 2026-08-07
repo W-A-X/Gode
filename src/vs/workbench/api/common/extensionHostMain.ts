@@ -234,6 +234,15 @@ export class ExtensionHostMain {
 		initData.nlsBaseUrl = URI.revive(rpcProtocol.transformIncomingURIs(initData.nlsBaseUrl));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
+		if (initData.loggers) {
+			initData.loggers = initData.loggers.map(logger => {
+				const revived = { ...logger };
+				if (revived.resource) {
+					revived.resource = URI.revive(rpcProtocol.transformIncomingURIs(revived.resource));
+				}
+				return revived;
+			});
+		}
 		return initData;
 	}
 }

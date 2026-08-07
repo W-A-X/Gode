@@ -13,13 +13,12 @@ import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, runOnChange, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
-import { isDefined, isObject } from '../../../../../base/common/types.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -27,7 +26,6 @@ import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKi
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
-import { isCompletionsEnabledFromObject } from '../../../../common/services/completionsEnablement.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
@@ -44,7 +42,6 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
-	private readonly _sendRequestData;
 
 	private readonly _structuredFetchLogger;
 
@@ -81,8 +78,6 @@ export class InlineCompletionsSource extends Disposable {
 
 	private readonly _renameProcessor: RenameSymbolProcessor;
 
-	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
-
 	constructor(
 		private readonly _textModel: ITextModel,
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
@@ -97,7 +92,6 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-		this._sendRequestData = observableConfigValue('editor.inlineSuggest.emptyResponseInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
@@ -109,26 +103,7 @@ export class InlineCompletionsSource extends Disposable {
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
-		const enablementSetting = product.defaultChatAgent?.completionsEnablementSetting ?? undefined;
-		if (enablementSetting) {
-			this._updateCompletionsEnablement(enablementSetting);
-			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(enablementSetting)) {
-					this._updateCompletionsEnablement(enablementSetting);
-				}
-			}));
-		}
-
 		this._state.recomputeInitiallyAndOnChange(this._store);
-	}
-
-	private _updateCompletionsEnablement(enalementSetting: string) {
-		const result = this._configurationService.getValue<Record<string, boolean>>(enalementSetting);
-		if (!isObject(result)) {
-			this._completionsEnabled = undefined;
-		} else {
-			this._completionsEnabled = result;
-		}
 	}
 
 	public readonly clearOperationOnTextModelChange = derived(this, reader => {

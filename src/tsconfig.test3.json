@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true
+	},
+	"include": [
+		"vs/**/*.ts"
+	],
+	"exclude": [
+		"vs/workbench/contrib/chat/**/*.ts",
+		"vs/sessions/**/*.ts"
+	]
+}

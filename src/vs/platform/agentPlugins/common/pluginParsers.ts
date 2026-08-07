@@ -13,10 +13,73 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
-import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
-import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
+
+export function customizationId(uri: string): string {
+	return uri;
+}
+
+// Types formerly imported from ../../agentHost/common/state/protocol/state.js
+// (agentHost module not yet present in this codebase)
+export enum CustomizationType {
+	Agent = 'agent',
+	Skill = 'skill',
+	Rule = 'rule',
+	Hook = 'hook',
+	McpServer = 'mcpServer',
+}
+
+export interface AgentCustomization {
+	readonly type: typeof CustomizationType.Agent;
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+	readonly description?: string;
+}
+
+export interface SkillCustomization {
+	readonly type: typeof CustomizationType.Skill;
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+	readonly description?: string;
+}
+
+export interface RuleCustomization {
+	readonly type: typeof CustomizationType.Rule;
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+	readonly description?: string;
+}
+
+export interface HookCustomization {
+	readonly type: typeof CustomizationType.Hook;
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+}
+
+export enum McpServerStatus {
+	Stopped = 'stopped',
+	Starting = 'starting',
+	Running = 'running',
+	Error = 'error',
+}
+
+export interface McpServerCustomization {
+	readonly type: typeof CustomizationType.McpServer;
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly state: { readonly kind: McpServerStatus };
+	readonly mcpApp: { readonly id: string };
+}
+
+// DEFAULT_MCP_APP formerly imported from ../../agentHost/common/state/protocol/mcpAppDefaults.js
+const DEFAULT_MCP_APP = { id: 'default' } as const;
+export { DEFAULT_MCP_APP };
 
 // ---------------------------------------------------------------------------
 // Types

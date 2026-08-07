@@ -14,14 +14,12 @@ import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
-import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpAppDefaults.js';
-import { customizationId } from '../../../agentHost/common/state/sessionState.js';
-
-function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
-}
 import {
+	CustomizationType,
+	McpServerStatus,
+	type McpServerCustomization,
+	DEFAULT_MCP_APP,
+	customizationId,
 	IParsedHookCommand,
 	makeMcpServerCustomization,
 	parseComponentPathConfig,
@@ -37,6 +35,10 @@ import {
 	PluginFormat,
 } from '../../common/pluginParsers.js';
 import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../common/agentPluginParser.js';
+
+function stubMcpCustomization(): McpServerCustomization {
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting }, mcpApp: DEFAULT_MCP_APP };
+}
 
 suite('pluginParsers', () => {
 

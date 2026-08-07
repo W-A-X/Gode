@@ -28,7 +28,7 @@ export class GoServerIntegration {
 		options: GoServerIntegrationOptions,
 	) {
 		this.enabled = options.enabled;
-		this.client = new GoBackendClient(logService, options.goBackendHost, options.goBackendPort);
+		this.client = new GoBackendClient(logService);
 
 		if (this.enabled) {
 			this.logService.info('[GoServerIntegration] Go backend integration enabled');
@@ -49,10 +49,10 @@ export class GoServerIntegration {
 		switch (channelName) {
 			case REMOTE_FILE_SYSTEM_CHANNEL_NAME:
 				this.logService.info('[GoServerIntegration] Delegating file system to Go backend');
-				return new GoFileSystemChannel(this.client, this.logService);
+				return new GoFileSystemChannel(this.client, this.logService) as IServerChannel<RemoteAgentConnectionContext>;
 			case REMOTE_TERMINAL_CHANNEL_NAME:
 				this.logService.info('[GoServerIntegration] Delegating terminal to Go backend');
-				return new GoTerminalChannel(this.client, this.logService);
+				return new GoTerminalChannel(this.client) as IServerChannel<RemoteAgentConnectionContext>;
 			default:
 				return fallbackChannel;
 		}

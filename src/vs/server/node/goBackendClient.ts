@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { ILogService } from '../../platform/log/common/log.js';
 

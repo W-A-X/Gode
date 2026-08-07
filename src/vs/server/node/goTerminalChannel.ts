@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../base/common/event.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
-import { ILogService } from '../../platform/log/common/log.js';
 import { GoBackendClient } from './goBackendClient.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 
@@ -20,17 +19,16 @@ export class GoTerminalChannel implements IServerChannel<RemoteAgentConnectionCo
 
 	constructor(
 		private readonly goClient: GoBackendClient,
-		private readonly logService: ILogService,
 	) {
 	}
 
-	async call(ctx: RemoteAgentConnectionContext, command: string, args: unknown[]): Promise<unknown> {
+	async call(ctx: RemoteAgentConnectionContext, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'createTerminal': {
-				const [id, shellPath, args_terminal, cols, rows, workDir] = args as [string, string, string[], number, number, string];
+				const [id, shellPath, arg_terminal, _cols, _rows, workDir] = arg as [string, string, string[], number, number, string];
 				const info = await this.goClient.fetch<GoProcessInfo>('/terminal/create', {
 					method: 'POST',
-					body: { id, command: shellPath, args: args_terminal, cols, rows, workDir },
+					body: { id, command: shellPath, args: arg_terminal, cols: _cols, rows: _rows, workDir },
 				});
 				return {
 					id: info.id,
@@ -40,7 +38,7 @@ export class GoTerminalChannel implements IServerChannel<RemoteAgentConnectionCo
 				};
 			}
 			case 'killTerminal': {
-				const id = args[0] as string;
+				const id = arg[0] as string;
 				await this.goClient.fetch<void>('/terminal/kill', {
 					method: 'POST',
 					body: { id },
@@ -48,23 +46,20 @@ export class GoTerminalChannel implements IServerChannel<RemoteAgentConnectionCo
 				return undefined;
 			}
 			case 'sendInput': {
-				const id = args[0] as string;
-				const data = args[1] as string;
+				const id = arg[0] as string;
+				const data = arg[1] as string;
 				await this.goClient.fetch<void>('/terminal/input', {
 					method: 'POST',
 					body: { id, data },
 				});
 				return undefined;
 			}
-			case 'resizeTerminal': {
-				const id = args[0] as string;
-				const cols = args[1] as number;
-				const rows = args[2] as number;
-				// Go backend handles resize, but it's mostly for PTY support
-				return undefined;
-			}
+		case 'resizeTerminal': {
+			// Go backend handles resize, but it's mostly for PTY support
+			return undefined;
+		}
 			case 'getProcessInfo': {
-				const id = args[0] as string;
+				const id = arg[0] as string;
 				const info = await this.goClient.fetch<GoProcessInfo>(`/terminal/info?id=${encodeURIComponent(id)}`);
 				return {
 					id: info.id,
@@ -73,7 +68,7 @@ export class GoTerminalChannel implements IServerChannel<RemoteAgentConnectionCo
 				};
 			}
 			case 'getExitCode': {
-				const id = args[0] as string;
+				const id = arg[0] as string;
 				// Simplified: get from process info
 				const info = await this.goClient.fetch<GoProcessInfo>(`/terminal/info?id=${encodeURIComponent(id)}`).catch(() => null);
 				if (info) {
@@ -89,15 +84,15 @@ export class GoTerminalChannel implements IServerChannel<RemoteAgentConnectionCo
 		throw new Error(`IPC Command ${command} not found in Go terminal channel`);
 	}
 
-	listen(ctx: RemoteAgentConnectionContext, event: string, args: unknown[]): Event<unknown> {
+	listen<T>(ctx: RemoteAgentConnectionContext, event: string, _arg?: any): Event<T> {
 		switch (event) {
 			case 'onDidCloseTerminal': {
 				const emitter = new Emitter<{ id: string; exitCode: number }>();
-				return emitter.event;
+				return emitter.event as Event<T>;
 			}
 			case 'onDidSendInput': {
 				const emitter = new Emitter<{ id: string; data: string }>();
-				return emitter.event;
+				return emitter.event as Event<T>;
 			}
 		}
 		throw new Error(`Unknown event ${event}`);

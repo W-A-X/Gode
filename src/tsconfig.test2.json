@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true
+	},
+	"include": [
+		"vs/workbench/contrib/chat/test/browser"
+	],
+	"exclude": [
+		"vs/workbench/contrib/chat"
+	]
+}

@@ -32,9 +32,9 @@ export class GoChannelBridge {
 
 		switch (channelName) {
 			case REMOTE_FILE_SYSTEM_CHANNEL_NAME:
-				return new GoFileSystemChannel(this.goClient, this.logService);
+				return new GoFileSystemChannel(this.goClient, this.logService) as IServerChannel<RemoteAgentConnectionContext>;
 			case REMOTE_TERMINAL_CHANNEL_NAME:
-				return new GoTerminalChannel(this.goClient, this.logService);
+				return new GoTerminalChannel(this.goClient) as IServerChannel<RemoteAgentConnectionContext>;
 			default:
 				return null;
 		}

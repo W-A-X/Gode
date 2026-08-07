@@ -34,6 +34,27 @@ type IDEEngine struct {
 	tabScale      float32
 	tabsDirty     bool
 
+	// --- Full IDE layout state ---
+	activityBarItems []ActivityBarItem
+	sidebarItems     []SidebarItem
+	panelTabs        []PanelTab
+	auxiliaryTabs    []AuxiliaryTab
+	statusItems      []StatusItem
+	titleState       TitleState
+	layoutState      LayoutState
+
+	// --- Full IDE layout callbacks ---
+	OnActivityBarSelected   func(id string)
+	OnSidebarItemSelected   func(path string)
+	OnSidebarItemToggle     func(path string, expanded bool)
+	OnPanelTabSelected      func(id string)
+	OnAuxiliaryTabSelected  func(id string)
+	OnTitlebarAction        func(action string)
+	OnCommandPaletteRequested func(func())
+	OnCommandSelected       func(id string)
+	OnStatusItemClicked     func(id string)
+	OnInputBarSubmit        func(text string)
+
 	onDidChange func(Range, string)
 	OnTabSelected func(idx int)
 	OnTabClose    func(idx int)
@@ -388,4 +409,127 @@ func (e *IDEEngine) HandleTabEvent(me InputMouse) bool {
 // TabViewportSize returns the current tab bar dimensions.
 func (e *IDEEngine) TabViewportSize() (int, int) {
 	return e.tabWidth, e.tabHeight
+}
+
+// --- Full IDE Layout Methods ---
+
+// SetActivityBarItems updates the activity bar items.
+func (e *IDEEngine) SetActivityBarItems(items []ActivityBarItem) {
+	e.activityBarItems = items
+	e.markDirty()
+}
+
+// SetSidebarItems updates the sidebar file tree.
+func (e *IDEEngine) SetSidebarItemsGo(items []SidebarItem) {
+	e.sidebarItems = items
+	e.markDirty()
+}
+
+// SetPanelTabs updates the panel tabs.
+func (e *IDEEngine) SetPanelTabs(tabs []PanelTab) {
+	e.panelTabs = tabs
+	e.markDirty()
+}
+
+// SetAuxiliaryTabs updates the auxiliary bar tabs.
+func (e *IDEEngine) SetAuxiliaryTabs(tabs []AuxiliaryTab) {
+	e.auxiliaryTabs = tabs
+	e.markDirty()
+}
+
+// SetStatusItems updates the status bar items.
+func (e *IDEEngine) SetStatusItems(items []StatusItem) {
+	e.statusItems = items
+	e.markDirty()
+}
+
+// SetTitleStateGo updates the title bar state.
+func (e *IDEEngine) SetTitleStateGo(state TitleState) {
+	e.titleState = state
+	e.layout.SetTitle(state.Title)
+	e.layout.SetSubtitle(state.Subtitle)
+	e.markDirty()
+}
+
+// SetLayoutStateGo updates which parts are visible.
+func (e *IDEEngine) SetLayoutStateGo(state LayoutState) {
+	e.layoutState = state
+	// Update layout options based on visibility
+	if !state.SidebarVisible {
+		e.layout.Options.SidebarWidth = 0
+	}
+	if !state.PanelVisible {
+		e.layout.Options.RightPanelWidth = 0
+	}
+	e.markDirty()
+}
+
+// EmitActivityBarSelected sends an activitybar_selected event to the host.
+func (e *IDEEngine) EmitActivityBarSelected(id string) {
+	if e.OnActivityBarSelected != nil {
+		e.OnActivityBarSelected(id)
+	}
+}
+
+// EmitSidebarItemSelected sends a sidebar_item_selected event to the host.
+func (e *IDEEngine) EmitSidebarItemSelected(path string) {
+	if e.OnSidebarItemSelected != nil {
+		e.OnSidebarItemSelected(path)
+	}
+}
+
+// EmitSidebarItemToggle sends a sidebar_item_toggle event to the host.
+func (e *IDEEngine) EmitSidebarItemToggle(path string, expanded bool) {
+	if e.OnSidebarItemToggle != nil {
+		e.OnSidebarItemToggle(path, expanded)
+	}
+}
+
+// EmitPanelTabSelected sends a panel_tab_selected event to the host.
+func (e *IDEEngine) EmitPanelTabSelected(id string) {
+	if e.OnPanelTabSelected != nil {
+		e.OnPanelTabSelected(id)
+	}
+}
+
+// EmitAuxiliaryTabSelected sends an auxiliary_tab_selected event to the host.
+func (e *IDEEngine) EmitAuxiliaryTabSelected(id string) {
+	if e.OnAuxiliaryTabSelected != nil {
+		e.OnAuxiliaryTabSelected(id)
+	}
+}
+
+// EmitTitlebarAction sends a titlebar_action event to the host.
+func (e *IDEEngine) EmitTitlebarAction(action string) {
+	if e.OnTitlebarAction != nil {
+		e.OnTitlebarAction(action)
+	}
+}
+
+// EmitCommandPaletteRequested sends a command_palette_requested event to the host.
+func (e *IDEEngine) EmitCommandPaletteRequested() {
+	if e.OnCommandPaletteRequested != nil {
+		e.OnCommandPaletteRequested(func() {})
+	}
+}
+
+// EmitCommandSelected sends a command_selected event to the host.
+func (e *IDEEngine) EmitCommandSelected(id string) {
+	if e.OnCommandSelected != nil {
+		e.OnCommandSelected(id)
+	}
+}
+
+// EmitStatusItemClicked sends a status_item_clicked event to the host.
+func (e *IDEEngine) EmitStatusItemClicked(id string) {
+	if e.OnStatusItemClicked != nil {
+		e.OnStatusItemClicked(id)
+	}
+}
+
+// EmitInputBarSubmit sends an input_bar_submit event to the host.
+func (e *IDEEngine) EmitInputBarSubmit(text string) {
+	if e.OnInputBarSubmit != nil {
+		e.OnInputBarSubmit(text)
+	}
 }

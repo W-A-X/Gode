@@ -87,6 +87,99 @@ type TabViewportCmd struct {
 	Scale  float32 `json:"scale"`
 }
 
+// --- Full IDE Layout Protocol ---
+
+// ActivityBarItem represents an extension view container in the activity bar.
+type ActivityBarItem struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Icon       string `json:"icon"`
+	BadgeCount int    `json:"badge_count"`
+	IsVisible  bool   `json:"is_visible"`
+}
+
+// SidebarItem represents a file or directory in the sidebar tree.
+type SidebarItem struct {
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	Path        string        `json:"path"`
+	IsDirectory bool          `json:"is_directory"`
+	IsExpanded  bool          `json:"is_expanded"`
+	Children    []SidebarItem `json:"children,omitempty"`
+	Icon        string        `json:"icon"`
+}
+
+// PanelTab represents a panel tab (terminal, output, problems, etc.).
+type PanelTab struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	IsActive    bool   `json:"is_active"`
+	ContentType string `json:"content_type"`
+}
+
+// AuxiliaryTab represents an auxiliary bar tab (chat, agents, etc.).
+type AuxiliaryTab struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Icon     string `json:"icon"`
+	IsActive bool   `json:"is_active"`
+}
+
+// StatusItem represents a status bar item.
+type StatusItem struct {
+	ID         string `json:"id"`
+	Text       string `json:"text"`
+	Icon       string `json:"icon,omitempty"`
+	Alignment  string `json:"alignment"` // "left" | "right"
+	Tooltip    string `json:"tooltip,omitempty"`
+}
+
+// TitleState represents the title bar state.
+type TitleState struct {
+	Title           string `json:"title"`
+	Subtitle        string `json:"subtitle"`
+	SidebarVisible  bool   `json:"sidebar_visible"`
+	PanelVisible    bool   `json:"panel_visible"`
+	AuxiliaryVisible bool  `json:"auxiliary_visible"`
+}
+
+// WorkbenchViewport represents the full window rendering dimensions.
+type WorkbenchViewport struct {
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	Scale  float32 `json:"scale"`
+}
+
+// LayoutState represents which parts are visible.
+type LayoutState struct {
+	ActivitybarVisible  bool `json:"activitybar_visible"`
+	SidebarVisible      bool `json:"sidebar_visible"`
+	PanelVisible        bool `json:"panel_visible"`
+	AuxiliarybarVisible bool `json:"auxiliarybar_visible"`
+	StatusbarVisible    bool `json:"statusbar_visible"`
+}
+
+// CommandItem represents a command in the command palette.
+type CommandItem struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Shortcut string `json:"shortcut,omitempty"`
+	Category string `json:"category,omitempty"`
+}
+
+// ExecuteCommandPayload represents a command execution request.
+type ExecuteCommandPayload struct {
+	CommandID string        `json:"command_id"`
+	Args      []interface{} `json:"args,omitempty"`
+}
+
+// NotificationPayload represents a notification from the engine.
+type NotificationPayload struct {
+	Message string `json:"message"`
+	Level   string `json:"level"` // "info" | "warning" | "error"
+}
+
 // Command is a JSON-line message sent from the host to the engine.
 type Command struct {
 	Cmd string `json:"cmd"`
@@ -126,6 +219,44 @@ type Command struct {
 
 	// tab_viewport - set tab bar rendering dimensions
 	TabViewport *TabViewportCmd `json:"tab_viewport,omitempty"`
+
+	// --- Full IDE layout commands ---
+
+	// set_workbench_viewport - set full window rendering dimensions
+	WorkbenchViewport *WorkbenchViewport `json:"workbench_viewport,omitempty"`
+
+	// set_activitybar_items - update activity bar items
+	ActivityBarItems []ActivityBarItem `json:"activitybar_items,omitempty"`
+
+	// set_sidebar_items - update sidebar file tree
+	SidebarItems []SidebarItem `json:"sidebar_items,omitempty"`
+
+	// set_panel_tabs - update panel tabs
+	PanelTabs []PanelTab `json:"panel_tabs,omitempty"`
+
+	// set_auxiliary_tabs - update auxiliary bar tabs
+	AuxiliaryTabs []AuxiliaryTab `json:"auxiliary_tabs,omitempty"`
+
+	// set_status_items - update status bar items
+	StatusItems []StatusItem `json:"status_items,omitempty"`
+
+	// set_title - update title bar state
+	TitleState *TitleState `json:"title_state,omitempty"`
+
+	// set_layout_state - update which parts are visible
+	LayoutState *LayoutState `json:"layout_state,omitempty"`
+
+	// execute_command - execute a VS Code command from engine
+	ExecuteCommand *ExecuteCommandPayload `json:"execute_command,omitempty"`
+
+	// show_command_palette - request command palette
+	ShowCommandPalette bool `json:"show_command_palette,omitempty"`
+
+	// set_command_palette_items - populate command palette
+	CommandPaletteItems []CommandItem `json:"command_palette_items,omitempty"`
+
+	// notification from engine
+	Notification *NotificationPayload `json:"notification,omitempty"`
 }
 
 // Event is a JSON-line message sent from the engine to the host.
@@ -163,6 +294,46 @@ type Event struct {
 
 	// tab_close - user clicked close button on a tab
 	TabCloseIdx int `json:"tab_close_idx,omitempty"`
+
+	// --- Full IDE layout events ---
+
+	// activitybar_selected - user clicked an activity bar item
+	ActivityBarSelectedID string `json:"activitybar_selected_id,omitempty"`
+
+	// sidebar_item_selected - user selected a file in sidebar
+	SidebarItemPath string `json:"sidebar_item_path,omitempty"`
+
+	// sidebar_item_toggle - user expanded/collapsed a directory
+	SidebarItemToggle *struct {
+		Path     string `json:"path"`
+		Expanded bool   `json:"expanded"`
+	} `json:"sidebar_item_toggle,omitempty"`
+
+	// panel_tab_selected - user selected a panel tab
+	PanelTabSelectedID string `json:"panel_tab_selected_id,omitempty"`
+
+	// auxiliary_tab_selected - user selected an auxiliary tab
+	AuxiliaryTabSelectedID string `json:"auxiliary_tab_selected_id,omitempty"`
+
+	// titlebar_action - user clicked a title bar action
+	TitlebarAction *struct {
+		Action string `json:"action"`
+	} `json:"titlebar_action,omitempty"`
+
+	// command_palette_requested - engine wants command palette
+	CommandPaletteRequested bool `json:"command_palette_requested,omitempty"`
+
+	// command_selected - user selected a command from palette
+	CommandSelectedID string `json:"command_selected_id,omitempty"`
+
+	// status_item_clicked - user clicked a status bar item
+	StatusItemClickedID string `json:"status_item_clicked_id,omitempty"`
+
+	// input_bar_submit - user submitted input in the input bar
+	InputBarText string `json:"input_bar_text,omitempty"`
+
+	// engine_ready - engine finished initialization
+	EngineReady bool `json:"engine_ready,omitempty"`
 }
 
 // posToEditor converts a protocol Pos to an editor.Position.

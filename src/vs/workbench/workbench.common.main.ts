@@ -223,17 +223,17 @@ import './contrib/notebook/browser/notebook.contribution.js';
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import './contrib/chat/browser/chat.shared.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/chat.view.contribution.js';
+// import './contrib/chat/browser/chat.shared.contribution.js';
+// import './contrib/chat/browser/chat.contribution.js';
+// import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Copilot Voice
-import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
-import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/mcp/browser/mcp.view.contribution.js';
-import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+// import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
+// import './contrib/mcp/browser/mcp.contribution.js';
+// import './contrib/mcp/browser/mcp.view.contribution.js';
+// import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+// import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive
@@ -450,7 +450,7 @@ import './contrib/list/browser/list.contribution.js';
 import './contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
 
 // Bracket Pair Colorizer 2 Telemetry
-import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
+// import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
 
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';
